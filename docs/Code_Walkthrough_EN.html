@@ -1,0 +1,1461 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Week 07 / Code walkthrough</title><style>*{box-sizing:border-box}body{margin:0;overflow-wrap:anywhere;background:#edf3ef;color:#142b24;font:18px/1.8 Arial,system-ui}main{max-width:1080px;margin:30px auto;background:white;padding:54px 64px}h1{font-size:40px;line-height:1.15;letter-spacing:-1px}h2{font-size:27px;line-height:1.3;margin-top:55px;padding-top:25px;border-top:2px solid #246b52;color:#246b52}h3{font-size:21px;margin-top:26px}h4{font-size:18px}a{color:#246b52;text-underline-offset:4px}li{margin:8px 0}pre{position:relative;background:#142b24;color:#f1f7f2;padding:24px;white-space:pre-wrap;overflow-wrap:anywhere;font:14px/1.8 Menlo,Consolas,monospace}table{border-collapse:collapse;table-layout:fixed;width:100%;font-size:16px}td,th{padding:14px 16px;border-bottom:1px solid #d9e5dc;text-align:left;vertical-align:top}th{background:#edf6ef}img{max-width:100%;max-height:600px;object-fit:contain;display:block;margin:18px auto}details{margin:22px 0}summary{cursor:pointer;color:#246b52;font-weight:600}.copy{border:1px solid #246b52;background:white;color:#246b52;padding:7px 15px;border-radius:4px;cursor:pointer}.definition{font-size:20px;color:#65766d}.note{border-left:3px solid #246b52;padding:12px 20px;background:#eff6ef}.toc{columns:2;font-size:15px;line-height:1.6}.toc li{break-inside:avoid}.meta{font-size:14px;color:#65766d}@media(max-width:700px){main{padding:25px;margin:0}.toc{columns:1}}@media print{body{background:white}main{margin:0;padding:0;max-width:none}pre{break-inside:avoid}h2,h3{break-after:avoid}.copy{display:none}}body{background:#e8edf4;color:#0f172a;font-family:-apple-system,BlinkMacSystemFont,Inter,Arial,sans-serif}main{border-radius:0}h1{font-weight:800;font-size:48px;letter-spacing:-1.8px;color:#101b2d}h2{font-weight:800}pre{background:#0f172a;border:1px solid #334155;border-radius:12px}.note{background:#fff;border:1px solid #cbd5e1;border-left:3px solid #246b52;border-radius:8px}img{border-radius:10px}figure{margin:25px 0}th{background:#f8fafc}@media(max-width:700px){h1{font-size:34px}}img.zoomable{cursor:zoom-in}img.zoomable:focus-visible{outline:3px solid #246b52;outline-offset:4px}.image-dialog{width:95vw;max-width:95vw;max-height:94vh;padding:0;border:0;border-radius:8px;background:#edf3ef;color:#142b24}.image-dialog::backdrop{background:#0b201deb}.image-tools{position:sticky;top:0;display:flex;align-items:center;gap:14px;padding:12px 20px;background:white;border-bottom:1px solid #d7e2da;font:16px Arial,system-ui}.image-tools span{margin-right:auto}.image-tools button{border:1px solid #246b52;background:white;color:#246b52;padding:8px 15px;border-radius:4px;cursor:pointer}.image-scroll{overflow:auto;max-height:82vh;padding:15px}.image-dialog .image-scroll img{display:block;margin:0 auto;width:100%;height:auto;max-width:100%;max-height:none;object-fit:contain}.image-dialog.native-size .image-scroll img{width:auto;max-width:none;margin:0}@media print{.image-dialog{display:none!important}}
+</style></head><body><main><h1>Week 07 / Code walkthrough</h1><p>Each explanation follows the delivered source code. Read the short excerpt, predict the result, then open the complete file when you need its context.</p><ol class="toc"><li><a href="#step1">State and v-model</a></li><li><a href="#step2">The request helper</a></li><li><a href="#step3">Await and HTTP errors</a></li><li><a href="#step4">The login sequence</a></li><li><a href="#step5">Form submission and busy state</a></li><li><a href="#step6">A delete response has no body</a></li><li><a href="#step7">A Vite development proxy</a></li><li><a href="#step8">A validated request DTO</a></li><li><a href="#step9">Controller input and identity</a></li><li><a href="#step10">Password hashing on registration</a></li><li><a href="#step11">Password matching on login</a></li><li><a href="#step12">JWT issuance</a></li><li><a href="#step13">Public and protected endpoints</a></li><li><a href="#step14">A secret with no production fallback</a></li><li><a href="#step15">JWT verification</a></li><li><a href="#step16">The saved author check</a></li><li><a href="#step17">A transaction around an edit</a></li><li><a href="#step18">Entity fields and database columns</a></li><li><a href="#step19">Repository query names</a></li><li><a href="#step20">The Flyway migration</a></li><li><a href="#step21">Production configuration</a></li><li><a href="#step22">Docker: frontend build</a></li><li><a href="#step23">Docker: Java build and tests</a></li><li><a href="#step24">Docker: the runtime process</a></li><li><a href="#step25">OpenAPI security metadata</a></li><li><a href="#step26">A direct authorization test</a></li></ol><h2 id="step1">A01 / State and v-model</h2><p class="definition">A ref holds reactive state in Vue.</p><h3>ref(null)</h3><p>No user is known on the first render.</p><h3>user.value</h3><p>JavaScript reads or changes the stored value.</p><h3>Template</h3><p>Vue unwraps refs when showing their values.</p><h3>frontend/src/App.vue</h3><pre>const user = ref(null), mode = ref(&#x27;signin&#x27;), busy = ref(false), loading = ref(true)
+const name = ref(&#x27;&#x27;), email = ref(&#x27;&#x27;), password = ref(&#x27;&#x27;), confirmation = ref(&#x27;&#x27;)
+const posts = ref([]), title = ref(&#x27;&#x27;), content = ref(&#x27;&#x27;), editingId = ref(null)
+const message = ref(&#x27;&#x27;), success = ref(&#x27;&#x27;)</pre><h3>Walkthrough and reasoning</h3><p>v-model connects an input to a ref. The App template binds email, password, title, and content. In script code a ref uses .value, while templates can refer to user or title directly. A plain variable can hold a value, but assigning it does not provide the same reactive tracking. All account state here belongs to the current page session.</p><p class="note">Typing changes a ref. Vue updates the affected screen.</p><p class="meta">Excerpt begins near source line 4. Read the surrounding method before editing.</p><details><summary>Complete file: frontend/src/App.vue</summary><pre>&lt;script setup&gt;
+import { ref, onMounted, onUnmounted } from &#x27;vue&#x27;
+import { request, setToken, clearToken } from &#x27;./api&#x27;
+const user = ref(null), mode = ref(&#x27;signin&#x27;), busy = ref(false), loading = ref(true)
+const name = ref(&#x27;&#x27;), email = ref(&#x27;&#x27;), password = ref(&#x27;&#x27;), confirmation = ref(&#x27;&#x27;)
+const posts = ref([]), title = ref(&#x27;&#x27;), content = ref(&#x27;&#x27;), editingId = ref(null)
+const message = ref(&#x27;&#x27;), success = ref(&#x27;&#x27;)
+function resetMessages() { message.value = &#x27;&#x27;; success.value = &#x27;&#x27; }
+function resetForm() { title.value = &#x27;&#x27;; content.value = &#x27;&#x27;; editingId.value = null }
+function changeMode() { mode.value = mode.value === &#x27;signin&#x27; ? &#x27;signup&#x27; : &#x27;signin&#x27;; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;; resetMessages() }
+function signOut() { clearToken(); user.value = null; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;; resetForm(); resetMessages() }
+function sessionExpired() { signOut(); message.value = &#x27;Your session expired. Sign in again.&#x27; }
+onMounted(() =&gt; { loadPosts(); window.addEventListener(&#x27;session-expired&#x27;, sessionExpired) })
+onUnmounted(() =&gt; window.removeEventListener(&#x27;session-expired&#x27;, sessionExpired))
+async function loadPosts() {
+  loading.value = true
+  try { posts.value = await request(&#x27;/posts&#x27;) }
+  catch (error) { message.value = error.message }
+  finally { loading.value = false }
+}
+async function authenticate() {
+  if (busy.value) return
+  resetMessages()
+  if (mode.value === &#x27;signup&#x27; &amp;&amp; password.value !== confirmation.value) { message.value = &#x27;The passwords do not match.&#x27;; return }
+  busy.value = true
+  try {
+    if (mode.value === &#x27;signup&#x27;) {
+      await request(&#x27;/auth/signup&#x27;, { method: &#x27;POST&#x27;, body: { name: name.value.trim(), email: email.value.trim(), password: password.value } })
+      mode.value = &#x27;signin&#x27;; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;
+      success.value = &#x27;Account created. Sign in with your password.&#x27;
+    } else {
+      const result = await request(&#x27;/auth/login&#x27;, { method: &#x27;POST&#x27;, body: { email: email.value.trim(), password: password.value } })
+      // Keep the token, then ask the server who is signed in.
+      setToken(result.accessToken)
+      user.value = await request(&#x27;/me&#x27;, { protectedCall: true })
+      password.value = &#x27;&#x27;; resetForm()
+      success.value = `Welcome, ${user.value.name}.`
+    }
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+function startEdit(post) { resetMessages(); editingId.value = post.id; title.value = post.title; content.value = post.content }
+async function savePost() {
+  if (busy.value) return
+  busy.value = true; resetMessages()
+  try {
+    const editing = editingId.value !== null
+    await request(editing ? `/posts/${editingId.value}` : &#x27;/posts&#x27;, {
+      method: editing ? &#x27;PUT&#x27; : &#x27;POST&#x27;, protectedCall: true,
+      body: { title: title.value.trim(), content: content.value.trim() },
+    })
+    resetForm(); success.value = editing ? &#x27;Post updated.&#x27; : &#x27;Post published.&#x27;
+    await loadPosts()
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+async function removePost(post) {
+  if (busy.value || !window.confirm(`Delete “${post.title}”?`)) return
+  busy.value = true; resetMessages()
+  try {
+    await request(`/posts/${post.id}`, { method: &#x27;DELETE&#x27;, protectedCall: true })
+    if (editingId.value === post.id) resetForm()
+    success.value = &#x27;Post deleted.&#x27;; await loadPosts()
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+const dateLabel = value =&gt; new Date(value).toLocaleString()
+&lt;/script&gt;
+
+&lt;template&gt;
+  &lt;header class=&quot;site-header&quot;&gt;&lt;a class=&quot;brand&quot; href=&quot;/&quot;&gt;Campus Board&lt;span&gt;Web Service Design / Week 07&lt;/span&gt;&lt;/a&gt;&lt;a class=&quot;api-link&quot; href=&quot;/swagger-ui.html&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;API explorer ↗&lt;/a&gt;&lt;/header&gt;
+  &lt;main&gt;
+    &lt;section class=&quot;intro&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;A place for campus ideas&lt;/p&gt;&lt;h1&gt;Share something&lt;br&gt;&lt;em&gt;worth knowing.&lt;/em&gt;&lt;/h1&gt;&lt;p&gt;Read the board. Sign in to publish a post of your own.&lt;/p&gt;&lt;/section&gt;
+    &lt;div class=&quot;status-area&quot; aria-live=&quot;polite&quot;&gt;&lt;p v-if=&quot;message&quot; class=&quot;error&quot; role=&quot;alert&quot;&gt;{{ message }}&lt;/p&gt;&lt;p v-if=&quot;success&quot; class=&quot;success&quot;&gt;{{ success }}&lt;/p&gt;&lt;/div&gt;
+    &lt;div class=&quot;workspace&quot;&gt;
+      &lt;aside&gt;
+        &lt;section v-if=&quot;!user&quot; class=&quot;account&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;Your account&lt;/p&gt;&lt;h2&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Create an account&#x27; : &#x27;Welcome back&#x27; }}&lt;/h2&gt;
+          &lt;form @submit.prevent=&quot;authenticate&quot;&gt;
+            &lt;label v-if=&quot;mode === &#x27;signup&#x27;&quot;&gt;Name&lt;input v-model=&quot;name&quot; required maxlength=&quot;60&quot; autocomplete=&quot;name&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Email&lt;input v-model=&quot;email&quot; required type=&quot;email&quot; maxlength=&quot;254&quot; autocomplete=&quot;username&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Password&lt;input v-model=&quot;password&quot; required type=&quot;password&quot; :minlength=&quot;mode === &#x27;signup&#x27; ? 12 : 1&quot; maxlength=&quot;72&quot; :autocomplete=&quot;mode === &#x27;signup&#x27; ? &#x27;new-password&#x27; : &#x27;current-password&#x27;&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label v-if=&quot;mode === &#x27;signup&#x27;&quot;&gt;Confirm password&lt;input v-model=&quot;confirmation&quot; required type=&quot;password&quot; autocomplete=&quot;new-password&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;p class=&quot;hint&quot;&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Use 12 or more characters, up to 72 UTF-8 bytes.&#x27; : &#x27;Use the password you registered. Reloading signs you out.&#x27; }}&lt;/p&gt;
+            &lt;button class=&quot;primary&quot; :disabled=&quot;busy&quot;&gt;{{ busy ? &#x27;Please wait…&#x27; : mode === &#x27;signup&#x27; ? &#x27;Create account&#x27; : &#x27;Sign in&#x27; }}&lt;/button&gt;
+          &lt;/form&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;changeMode&quot;&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Already registered? Sign in&#x27; : &#x27;New here? Create an account&#x27; }}&lt;/button&gt;
+        &lt;/section&gt;
+        &lt;section v-else class=&quot;account&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;Signed in&lt;/p&gt;&lt;h2&gt;{{ user.name }}&lt;/h2&gt;&lt;p class=&quot;email&quot;&gt;{{ user.email }}&lt;/p&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;signOut&quot;&gt;Sign out&lt;/button&gt;
+          &lt;div class=&quot;compose&quot;&gt;&lt;h3&gt;{{ editingId ? &#x27;Edit your post&#x27; : &#x27;A new post&#x27; }}&lt;/h3&gt;&lt;form @submit.prevent=&quot;savePost&quot;&gt;
+            &lt;label&gt;Title&lt;input v-model=&quot;title&quot; required maxlength=&quot;120&quot; :disabled=&quot;busy&quot; placeholder=&quot;What would you like to share?&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Message&lt;textarea v-model=&quot;content&quot; required maxlength=&quot;4000&quot; rows=&quot;6&quot; :disabled=&quot;busy&quot; placeholder=&quot;Add the details…&quot;&gt;&lt;/textarea&gt;&lt;/label&gt;
+            &lt;button class=&quot;primary&quot; :disabled=&quot;busy || !title.trim() || !content.trim()&quot;&gt;{{ busy ? &#x27;Saving…&#x27; : editingId ? &#x27;Save changes&#x27; : &#x27;Publish post&#x27; }}&lt;/button&gt;
+            &lt;button v-if=&quot;editingId&quot; type=&quot;button&quot; class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;resetForm&quot;&gt;Cancel editing&lt;/button&gt;
+          &lt;/form&gt;&lt;/div&gt;
+        &lt;/section&gt;
+      &lt;/aside&gt;
+      &lt;section class=&quot;board&quot;&gt;&lt;div class=&quot;board-heading&quot;&gt;&lt;h2&gt;The latest&lt;/h2&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;loading || busy&quot; @click=&quot;loadPosts&quot;&gt;Refresh&lt;/button&gt;&lt;/div&gt;
+        &lt;p v-if=&quot;loading&quot; role=&quot;status&quot; class=&quot;empty&quot;&gt;Loading posts…&lt;/p&gt;
+        &lt;p v-else-if=&quot;!posts.length&quot; class=&quot;empty&quot;&gt;The board is ready for your first idea.&lt;/p&gt;
+        &lt;article v-for=&quot;post in posts&quot; :key=&quot;post.id&quot; class=&quot;post&quot;&gt;&lt;div class=&quot;post-meta&quot;&gt;&lt;time :datetime=&quot;post.createdAt&quot;&gt;{{ dateLabel(post.createdAt) }}&lt;/time&gt;&lt;span v-if=&quot;user?.id === post.ownerId&quot;&gt;Your post&lt;/span&gt;&lt;/div&gt;&lt;h3&gt;{{ post.title }}&lt;/h3&gt;&lt;p class=&quot;post-content&quot;&gt;{{ post.content }}&lt;/p&gt;
+          &lt;div v-if=&quot;user?.id === post.ownerId&quot; class=&quot;post-actions&quot;&gt;&lt;button :disabled=&quot;busy&quot; @click=&quot;startEdit(post)&quot;&gt;Edit&lt;/button&gt;&lt;button :disabled=&quot;busy&quot; @click=&quot;removePost(post)&quot;&gt;Delete&lt;/button&gt;&lt;/div&gt;
+        &lt;/article&gt;&lt;p class=&quot;hint&quot;&gt;Showing the latest {{ posts.length }} posts, up to 50.&lt;/p&gt;
+      &lt;/section&gt;
+    &lt;/div&gt;
+  &lt;/main&gt;&lt;footer&gt;Campus Board / English section / MacsLAB&lt;/footer&gt;
+&lt;/template&gt;
+</pre></details><h2 id="step2">A02 / The request helper</h2><p class="definition">A helper centralizes repeated request behavior.</p><h3>Options</h3><p>Default method GET; optional JSON body.</p><h3>Headers</h3><p>Accept describes the expected response.</p><h3>Token</h3><p>Only a protected call receives Authorization.</p><h3>frontend/src/api.js</h3><pre>export async function request(path, { method = &#x27;GET&#x27;, body, protectedCall = false } = {}) {
+  const headers = { Accept: &#x27;application/json&#x27; }
+  if (body !== undefined) headers[&#x27;Content-Type&#x27;] = &#x27;application/json&#x27;
+  // Attach the token only to a protected request.
+  if (protectedCall &amp;&amp; accessToken) headers.Authorization = `Bearer ${accessToken}`
+  const response = await fetch(`/api${path}`, {
+    method, headers, body: body === undefined ? undefined : JSON.stringify(body),
+  })</pre><h3>Walkthrough and reasoning</h3><p>Destructuring gives names to the options and supplies defaults. body === undefined avoids sending a body for GET. JSON.stringify converts an object into bytes represented as text. The request uses a relative /api path, which works through the local proxy and on the production origin. This function returns a Promise.</p><p class="note">request(&#x27;/me&#x27;, { protectedCall: true }) becomes GET /api/me.</p><p class="meta">Excerpt begins near source line 5. Read the surrounding method before editing.</p><details><summary>Complete file: frontend/src/api.js</summary><pre>// Tokens stay in memory. Reloading the page requires another sign-in.
+let accessToken = &#x27;&#x27;
+export function setToken(value) { accessToken = value }
+export function clearToken() { accessToken = &#x27;&#x27; }
+export async function request(path, { method = &#x27;GET&#x27;, body, protectedCall = false } = {}) {
+  const headers = { Accept: &#x27;application/json&#x27; }
+  if (body !== undefined) headers[&#x27;Content-Type&#x27;] = &#x27;application/json&#x27;
+  // Attach the token only to a protected request.
+  if (protectedCall &amp;&amp; accessToken) headers.Authorization = `Bearer ${accessToken}`
+  const response = await fetch(`/api${path}`, {
+    method, headers, body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (response.status === 204) return null
+  const data = await response.json().catch(() =&gt; ({}))
+  if (!response.ok) {
+    if (response.status === 401 &amp;&amp; protectedCall) {
+      clearToken()
+      window.dispatchEvent(new Event(&#x27;session-expired&#x27;))
+    }
+    const error = new Error(data.message || `Request failed (${response.status}).`)
+    error.status = response.status
+    throw error
+  }
+  return data
+}
+</pre></details><h2 id="step3">A03 / Await and HTTP errors</h2><p class="definition">fetch resolves for HTTP error responses, so code must inspect the status.</p><h3>204</h3><p>Return null without JSON parsing.</p><h3>!response.ok</h3><p>Handle a non-2xx response.</p><h3>401</h3><p>Remove the token and notify the interface.</p><h3>frontend/src/api.js</h3><pre>if (response.status === 204) return null
+const data = await response.json().catch(() =&gt; ({}))
+if (!response.ok) {
+  if (response.status === 401 &amp;&amp; protectedCall) {
+    clearToken()
+    window.dispatchEvent(new Event(&#x27;session-expired&#x27;))
+  }
+  const error = new Error(data.message || `Request failed (${response.status}).`)
+  error.status = response.status</pre><h3>Walkthrough and reasoning</h3><p>await waits for the Promise inside the async function. It does not block the entire browser. fetch rejects for network failures, but a 400 or 403 normally resolves to a Response. The helper converts these HTTP failures into thrown errors so the caller’s catch can display a message. A protected 401 also dispatches session-expired.</p><p class="note">A 403 is an HTTP response, not automatically a fetch exception.</p><p class="meta">Excerpt begins near source line 13. Read the surrounding method before editing.</p><details><summary>Complete file: frontend/src/api.js</summary><pre>// Tokens stay in memory. Reloading the page requires another sign-in.
+let accessToken = &#x27;&#x27;
+export function setToken(value) { accessToken = value }
+export function clearToken() { accessToken = &#x27;&#x27; }
+export async function request(path, { method = &#x27;GET&#x27;, body, protectedCall = false } = {}) {
+  const headers = { Accept: &#x27;application/json&#x27; }
+  if (body !== undefined) headers[&#x27;Content-Type&#x27;] = &#x27;application/json&#x27;
+  // Attach the token only to a protected request.
+  if (protectedCall &amp;&amp; accessToken) headers.Authorization = `Bearer ${accessToken}`
+  const response = await fetch(`/api${path}`, {
+    method, headers, body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (response.status === 204) return null
+  const data = await response.json().catch(() =&gt; ({}))
+  if (!response.ok) {
+    if (response.status === 401 &amp;&amp; protectedCall) {
+      clearToken()
+      window.dispatchEvent(new Event(&#x27;session-expired&#x27;))
+    }
+    const error = new Error(data.message || `Request failed (${response.status}).`)
+    error.status = response.status
+    throw error
+  }
+  return data
+}
+</pre></details><h2 id="step4">A04 / The login sequence</h2><p class="definition">An asynchronous sequence uses each result before the next step.</p><h3>Credentials</h3><p>POST email and password.</p><h3>Token</h3><p>Store the returned accessToken.</p><h3>Identity</h3><p>Use the token to read /me, then update user.</p><h3>frontend/src/App.vue</h3><pre>  const result = await request(&#x27;/auth/login&#x27;, { method: &#x27;POST&#x27;, body: { email: email.value.trim(), password: password.value } })
+  // Keep the token, then ask the server who is signed in.
+  setToken(result.accessToken)
+  user.value = await request(&#x27;/me&#x27;, { protectedCall: true })
+  password.value = &#x27;&#x27;; resetForm()
+  success.value = `Welcome, ${user.value.name}.`
+}</pre><h3>Walkthrough and reasoning</h3><p>The login response already includes a safe user object, but the extra /me request demonstrates a protected operation. If login fails, code jumps to catch and the token update is skipped. If /me fails, the 401 handler clears the token. The password field is cleared after a successful sequence. The server also decides ownership independently of this UI profile.</p><p class="note">The welcome screen is based on a server-confirmed profile.</p><p class="meta">Excerpt begins near source line 32. Read the surrounding method before editing.</p><details><summary>Complete file: frontend/src/App.vue</summary><pre>&lt;script setup&gt;
+import { ref, onMounted, onUnmounted } from &#x27;vue&#x27;
+import { request, setToken, clearToken } from &#x27;./api&#x27;
+const user = ref(null), mode = ref(&#x27;signin&#x27;), busy = ref(false), loading = ref(true)
+const name = ref(&#x27;&#x27;), email = ref(&#x27;&#x27;), password = ref(&#x27;&#x27;), confirmation = ref(&#x27;&#x27;)
+const posts = ref([]), title = ref(&#x27;&#x27;), content = ref(&#x27;&#x27;), editingId = ref(null)
+const message = ref(&#x27;&#x27;), success = ref(&#x27;&#x27;)
+function resetMessages() { message.value = &#x27;&#x27;; success.value = &#x27;&#x27; }
+function resetForm() { title.value = &#x27;&#x27;; content.value = &#x27;&#x27;; editingId.value = null }
+function changeMode() { mode.value = mode.value === &#x27;signin&#x27; ? &#x27;signup&#x27; : &#x27;signin&#x27;; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;; resetMessages() }
+function signOut() { clearToken(); user.value = null; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;; resetForm(); resetMessages() }
+function sessionExpired() { signOut(); message.value = &#x27;Your session expired. Sign in again.&#x27; }
+onMounted(() =&gt; { loadPosts(); window.addEventListener(&#x27;session-expired&#x27;, sessionExpired) })
+onUnmounted(() =&gt; window.removeEventListener(&#x27;session-expired&#x27;, sessionExpired))
+async function loadPosts() {
+  loading.value = true
+  try { posts.value = await request(&#x27;/posts&#x27;) }
+  catch (error) { message.value = error.message }
+  finally { loading.value = false }
+}
+async function authenticate() {
+  if (busy.value) return
+  resetMessages()
+  if (mode.value === &#x27;signup&#x27; &amp;&amp; password.value !== confirmation.value) { message.value = &#x27;The passwords do not match.&#x27;; return }
+  busy.value = true
+  try {
+    if (mode.value === &#x27;signup&#x27;) {
+      await request(&#x27;/auth/signup&#x27;, { method: &#x27;POST&#x27;, body: { name: name.value.trim(), email: email.value.trim(), password: password.value } })
+      mode.value = &#x27;signin&#x27;; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;
+      success.value = &#x27;Account created. Sign in with your password.&#x27;
+    } else {
+      const result = await request(&#x27;/auth/login&#x27;, { method: &#x27;POST&#x27;, body: { email: email.value.trim(), password: password.value } })
+      // Keep the token, then ask the server who is signed in.
+      setToken(result.accessToken)
+      user.value = await request(&#x27;/me&#x27;, { protectedCall: true })
+      password.value = &#x27;&#x27;; resetForm()
+      success.value = `Welcome, ${user.value.name}.`
+    }
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+function startEdit(post) { resetMessages(); editingId.value = post.id; title.value = post.title; content.value = post.content }
+async function savePost() {
+  if (busy.value) return
+  busy.value = true; resetMessages()
+  try {
+    const editing = editingId.value !== null
+    await request(editing ? `/posts/${editingId.value}` : &#x27;/posts&#x27;, {
+      method: editing ? &#x27;PUT&#x27; : &#x27;POST&#x27;, protectedCall: true,
+      body: { title: title.value.trim(), content: content.value.trim() },
+    })
+    resetForm(); success.value = editing ? &#x27;Post updated.&#x27; : &#x27;Post published.&#x27;
+    await loadPosts()
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+async function removePost(post) {
+  if (busy.value || !window.confirm(`Delete “${post.title}”?`)) return
+  busy.value = true; resetMessages()
+  try {
+    await request(`/posts/${post.id}`, { method: &#x27;DELETE&#x27;, protectedCall: true })
+    if (editingId.value === post.id) resetForm()
+    success.value = &#x27;Post deleted.&#x27;; await loadPosts()
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+const dateLabel = value =&gt; new Date(value).toLocaleString()
+&lt;/script&gt;
+
+&lt;template&gt;
+  &lt;header class=&quot;site-header&quot;&gt;&lt;a class=&quot;brand&quot; href=&quot;/&quot;&gt;Campus Board&lt;span&gt;Web Service Design / Week 07&lt;/span&gt;&lt;/a&gt;&lt;a class=&quot;api-link&quot; href=&quot;/swagger-ui.html&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;API explorer ↗&lt;/a&gt;&lt;/header&gt;
+  &lt;main&gt;
+    &lt;section class=&quot;intro&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;A place for campus ideas&lt;/p&gt;&lt;h1&gt;Share something&lt;br&gt;&lt;em&gt;worth knowing.&lt;/em&gt;&lt;/h1&gt;&lt;p&gt;Read the board. Sign in to publish a post of your own.&lt;/p&gt;&lt;/section&gt;
+    &lt;div class=&quot;status-area&quot; aria-live=&quot;polite&quot;&gt;&lt;p v-if=&quot;message&quot; class=&quot;error&quot; role=&quot;alert&quot;&gt;{{ message }}&lt;/p&gt;&lt;p v-if=&quot;success&quot; class=&quot;success&quot;&gt;{{ success }}&lt;/p&gt;&lt;/div&gt;
+    &lt;div class=&quot;workspace&quot;&gt;
+      &lt;aside&gt;
+        &lt;section v-if=&quot;!user&quot; class=&quot;account&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;Your account&lt;/p&gt;&lt;h2&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Create an account&#x27; : &#x27;Welcome back&#x27; }}&lt;/h2&gt;
+          &lt;form @submit.prevent=&quot;authenticate&quot;&gt;
+            &lt;label v-if=&quot;mode === &#x27;signup&#x27;&quot;&gt;Name&lt;input v-model=&quot;name&quot; required maxlength=&quot;60&quot; autocomplete=&quot;name&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Email&lt;input v-model=&quot;email&quot; required type=&quot;email&quot; maxlength=&quot;254&quot; autocomplete=&quot;username&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Password&lt;input v-model=&quot;password&quot; required type=&quot;password&quot; :minlength=&quot;mode === &#x27;signup&#x27; ? 12 : 1&quot; maxlength=&quot;72&quot; :autocomplete=&quot;mode === &#x27;signup&#x27; ? &#x27;new-password&#x27; : &#x27;current-password&#x27;&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label v-if=&quot;mode === &#x27;signup&#x27;&quot;&gt;Confirm password&lt;input v-model=&quot;confirmation&quot; required type=&quot;password&quot; autocomplete=&quot;new-password&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;p class=&quot;hint&quot;&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Use 12 or more characters, up to 72 UTF-8 bytes.&#x27; : &#x27;Use the password you registered. Reloading signs you out.&#x27; }}&lt;/p&gt;
+            &lt;button class=&quot;primary&quot; :disabled=&quot;busy&quot;&gt;{{ busy ? &#x27;Please wait…&#x27; : mode === &#x27;signup&#x27; ? &#x27;Create account&#x27; : &#x27;Sign in&#x27; }}&lt;/button&gt;
+          &lt;/form&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;changeMode&quot;&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Already registered? Sign in&#x27; : &#x27;New here? Create an account&#x27; }}&lt;/button&gt;
+        &lt;/section&gt;
+        &lt;section v-else class=&quot;account&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;Signed in&lt;/p&gt;&lt;h2&gt;{{ user.name }}&lt;/h2&gt;&lt;p class=&quot;email&quot;&gt;{{ user.email }}&lt;/p&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;signOut&quot;&gt;Sign out&lt;/button&gt;
+          &lt;div class=&quot;compose&quot;&gt;&lt;h3&gt;{{ editingId ? &#x27;Edit your post&#x27; : &#x27;A new post&#x27; }}&lt;/h3&gt;&lt;form @submit.prevent=&quot;savePost&quot;&gt;
+            &lt;label&gt;Title&lt;input v-model=&quot;title&quot; required maxlength=&quot;120&quot; :disabled=&quot;busy&quot; placeholder=&quot;What would you like to share?&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Message&lt;textarea v-model=&quot;content&quot; required maxlength=&quot;4000&quot; rows=&quot;6&quot; :disabled=&quot;busy&quot; placeholder=&quot;Add the details…&quot;&gt;&lt;/textarea&gt;&lt;/label&gt;
+            &lt;button class=&quot;primary&quot; :disabled=&quot;busy || !title.trim() || !content.trim()&quot;&gt;{{ busy ? &#x27;Saving…&#x27; : editingId ? &#x27;Save changes&#x27; : &#x27;Publish post&#x27; }}&lt;/button&gt;
+            &lt;button v-if=&quot;editingId&quot; type=&quot;button&quot; class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;resetForm&quot;&gt;Cancel editing&lt;/button&gt;
+          &lt;/form&gt;&lt;/div&gt;
+        &lt;/section&gt;
+      &lt;/aside&gt;
+      &lt;section class=&quot;board&quot;&gt;&lt;div class=&quot;board-heading&quot;&gt;&lt;h2&gt;The latest&lt;/h2&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;loading || busy&quot; @click=&quot;loadPosts&quot;&gt;Refresh&lt;/button&gt;&lt;/div&gt;
+        &lt;p v-if=&quot;loading&quot; role=&quot;status&quot; class=&quot;empty&quot;&gt;Loading posts…&lt;/p&gt;
+        &lt;p v-else-if=&quot;!posts.length&quot; class=&quot;empty&quot;&gt;The board is ready for your first idea.&lt;/p&gt;
+        &lt;article v-for=&quot;post in posts&quot; :key=&quot;post.id&quot; class=&quot;post&quot;&gt;&lt;div class=&quot;post-meta&quot;&gt;&lt;time :datetime=&quot;post.createdAt&quot;&gt;{{ dateLabel(post.createdAt) }}&lt;/time&gt;&lt;span v-if=&quot;user?.id === post.ownerId&quot;&gt;Your post&lt;/span&gt;&lt;/div&gt;&lt;h3&gt;{{ post.title }}&lt;/h3&gt;&lt;p class=&quot;post-content&quot;&gt;{{ post.content }}&lt;/p&gt;
+          &lt;div v-if=&quot;user?.id === post.ownerId&quot; class=&quot;post-actions&quot;&gt;&lt;button :disabled=&quot;busy&quot; @click=&quot;startEdit(post)&quot;&gt;Edit&lt;/button&gt;&lt;button :disabled=&quot;busy&quot; @click=&quot;removePost(post)&quot;&gt;Delete&lt;/button&gt;&lt;/div&gt;
+        &lt;/article&gt;&lt;p class=&quot;hint&quot;&gt;Showing the latest {{ posts.length }} posts, up to 50.&lt;/p&gt;
+      &lt;/section&gt;
+    &lt;/div&gt;
+  &lt;/main&gt;&lt;footer&gt;Campus Board / English section / MacsLAB&lt;/footer&gt;
+&lt;/template&gt;
+</pre></details><h2 id="step5">A05 / Form submission and busy state</h2><p class="definition">A busy flag prevents repeated UI submissions while a request is pending.</p><h3>Guard</h3><p>Return early when busy is already true.</p><h3>Request</h3><p>Choose POST for new data and PUT for an edit.</p><h3>Body</h3><p>Send only editable fields.</p><h3>frontend/src/App.vue</h3><pre>async function savePost() {
+  if (busy.value) return
+  busy.value = true; resetMessages()
+  try {
+    const editing = editingId.value !== null
+    await request(editing ? `/posts/${editingId.value}` : &#x27;/posts&#x27;, {
+      method: editing ? &#x27;PUT&#x27; : &#x27;POST&#x27;, protectedCall: true,
+      body: { title: title.value.trim(), content: content.value.trim() },
+    })
+    resetForm(); success.value = editing ? &#x27;Post updated.&#x27; : &#x27;Post published.&#x27;</pre><h3>Walkthrough and reasoning</h3><p>The form uses @submit.prevent to stop a browser page navigation. The helper sends JSON. The function resets the input only after a successful response, then refreshes the list. A failure preserves the draft unless the session-expired handler clears the signed-in view. This UI guard does not provide durable server idempotency.</p><p class="note">The shared finally block releases busy after success or failure.</p><p class="meta">Excerpt begins near source line 43. Read the surrounding method before editing.</p><details><summary>Complete file: frontend/src/App.vue</summary><pre>&lt;script setup&gt;
+import { ref, onMounted, onUnmounted } from &#x27;vue&#x27;
+import { request, setToken, clearToken } from &#x27;./api&#x27;
+const user = ref(null), mode = ref(&#x27;signin&#x27;), busy = ref(false), loading = ref(true)
+const name = ref(&#x27;&#x27;), email = ref(&#x27;&#x27;), password = ref(&#x27;&#x27;), confirmation = ref(&#x27;&#x27;)
+const posts = ref([]), title = ref(&#x27;&#x27;), content = ref(&#x27;&#x27;), editingId = ref(null)
+const message = ref(&#x27;&#x27;), success = ref(&#x27;&#x27;)
+function resetMessages() { message.value = &#x27;&#x27;; success.value = &#x27;&#x27; }
+function resetForm() { title.value = &#x27;&#x27;; content.value = &#x27;&#x27;; editingId.value = null }
+function changeMode() { mode.value = mode.value === &#x27;signin&#x27; ? &#x27;signup&#x27; : &#x27;signin&#x27;; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;; resetMessages() }
+function signOut() { clearToken(); user.value = null; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;; resetForm(); resetMessages() }
+function sessionExpired() { signOut(); message.value = &#x27;Your session expired. Sign in again.&#x27; }
+onMounted(() =&gt; { loadPosts(); window.addEventListener(&#x27;session-expired&#x27;, sessionExpired) })
+onUnmounted(() =&gt; window.removeEventListener(&#x27;session-expired&#x27;, sessionExpired))
+async function loadPosts() {
+  loading.value = true
+  try { posts.value = await request(&#x27;/posts&#x27;) }
+  catch (error) { message.value = error.message }
+  finally { loading.value = false }
+}
+async function authenticate() {
+  if (busy.value) return
+  resetMessages()
+  if (mode.value === &#x27;signup&#x27; &amp;&amp; password.value !== confirmation.value) { message.value = &#x27;The passwords do not match.&#x27;; return }
+  busy.value = true
+  try {
+    if (mode.value === &#x27;signup&#x27;) {
+      await request(&#x27;/auth/signup&#x27;, { method: &#x27;POST&#x27;, body: { name: name.value.trim(), email: email.value.trim(), password: password.value } })
+      mode.value = &#x27;signin&#x27;; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;
+      success.value = &#x27;Account created. Sign in with your password.&#x27;
+    } else {
+      const result = await request(&#x27;/auth/login&#x27;, { method: &#x27;POST&#x27;, body: { email: email.value.trim(), password: password.value } })
+      // Keep the token, then ask the server who is signed in.
+      setToken(result.accessToken)
+      user.value = await request(&#x27;/me&#x27;, { protectedCall: true })
+      password.value = &#x27;&#x27;; resetForm()
+      success.value = `Welcome, ${user.value.name}.`
+    }
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+function startEdit(post) { resetMessages(); editingId.value = post.id; title.value = post.title; content.value = post.content }
+async function savePost() {
+  if (busy.value) return
+  busy.value = true; resetMessages()
+  try {
+    const editing = editingId.value !== null
+    await request(editing ? `/posts/${editingId.value}` : &#x27;/posts&#x27;, {
+      method: editing ? &#x27;PUT&#x27; : &#x27;POST&#x27;, protectedCall: true,
+      body: { title: title.value.trim(), content: content.value.trim() },
+    })
+    resetForm(); success.value = editing ? &#x27;Post updated.&#x27; : &#x27;Post published.&#x27;
+    await loadPosts()
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+async function removePost(post) {
+  if (busy.value || !window.confirm(`Delete “${post.title}”?`)) return
+  busy.value = true; resetMessages()
+  try {
+    await request(`/posts/${post.id}`, { method: &#x27;DELETE&#x27;, protectedCall: true })
+    if (editingId.value === post.id) resetForm()
+    success.value = &#x27;Post deleted.&#x27;; await loadPosts()
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+const dateLabel = value =&gt; new Date(value).toLocaleString()
+&lt;/script&gt;
+
+&lt;template&gt;
+  &lt;header class=&quot;site-header&quot;&gt;&lt;a class=&quot;brand&quot; href=&quot;/&quot;&gt;Campus Board&lt;span&gt;Web Service Design / Week 07&lt;/span&gt;&lt;/a&gt;&lt;a class=&quot;api-link&quot; href=&quot;/swagger-ui.html&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;API explorer ↗&lt;/a&gt;&lt;/header&gt;
+  &lt;main&gt;
+    &lt;section class=&quot;intro&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;A place for campus ideas&lt;/p&gt;&lt;h1&gt;Share something&lt;br&gt;&lt;em&gt;worth knowing.&lt;/em&gt;&lt;/h1&gt;&lt;p&gt;Read the board. Sign in to publish a post of your own.&lt;/p&gt;&lt;/section&gt;
+    &lt;div class=&quot;status-area&quot; aria-live=&quot;polite&quot;&gt;&lt;p v-if=&quot;message&quot; class=&quot;error&quot; role=&quot;alert&quot;&gt;{{ message }}&lt;/p&gt;&lt;p v-if=&quot;success&quot; class=&quot;success&quot;&gt;{{ success }}&lt;/p&gt;&lt;/div&gt;
+    &lt;div class=&quot;workspace&quot;&gt;
+      &lt;aside&gt;
+        &lt;section v-if=&quot;!user&quot; class=&quot;account&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;Your account&lt;/p&gt;&lt;h2&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Create an account&#x27; : &#x27;Welcome back&#x27; }}&lt;/h2&gt;
+          &lt;form @submit.prevent=&quot;authenticate&quot;&gt;
+            &lt;label v-if=&quot;mode === &#x27;signup&#x27;&quot;&gt;Name&lt;input v-model=&quot;name&quot; required maxlength=&quot;60&quot; autocomplete=&quot;name&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Email&lt;input v-model=&quot;email&quot; required type=&quot;email&quot; maxlength=&quot;254&quot; autocomplete=&quot;username&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Password&lt;input v-model=&quot;password&quot; required type=&quot;password&quot; :minlength=&quot;mode === &#x27;signup&#x27; ? 12 : 1&quot; maxlength=&quot;72&quot; :autocomplete=&quot;mode === &#x27;signup&#x27; ? &#x27;new-password&#x27; : &#x27;current-password&#x27;&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label v-if=&quot;mode === &#x27;signup&#x27;&quot;&gt;Confirm password&lt;input v-model=&quot;confirmation&quot; required type=&quot;password&quot; autocomplete=&quot;new-password&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;p class=&quot;hint&quot;&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Use 12 or more characters, up to 72 UTF-8 bytes.&#x27; : &#x27;Use the password you registered. Reloading signs you out.&#x27; }}&lt;/p&gt;
+            &lt;button class=&quot;primary&quot; :disabled=&quot;busy&quot;&gt;{{ busy ? &#x27;Please wait…&#x27; : mode === &#x27;signup&#x27; ? &#x27;Create account&#x27; : &#x27;Sign in&#x27; }}&lt;/button&gt;
+          &lt;/form&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;changeMode&quot;&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Already registered? Sign in&#x27; : &#x27;New here? Create an account&#x27; }}&lt;/button&gt;
+        &lt;/section&gt;
+        &lt;section v-else class=&quot;account&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;Signed in&lt;/p&gt;&lt;h2&gt;{{ user.name }}&lt;/h2&gt;&lt;p class=&quot;email&quot;&gt;{{ user.email }}&lt;/p&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;signOut&quot;&gt;Sign out&lt;/button&gt;
+          &lt;div class=&quot;compose&quot;&gt;&lt;h3&gt;{{ editingId ? &#x27;Edit your post&#x27; : &#x27;A new post&#x27; }}&lt;/h3&gt;&lt;form @submit.prevent=&quot;savePost&quot;&gt;
+            &lt;label&gt;Title&lt;input v-model=&quot;title&quot; required maxlength=&quot;120&quot; :disabled=&quot;busy&quot; placeholder=&quot;What would you like to share?&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Message&lt;textarea v-model=&quot;content&quot; required maxlength=&quot;4000&quot; rows=&quot;6&quot; :disabled=&quot;busy&quot; placeholder=&quot;Add the details…&quot;&gt;&lt;/textarea&gt;&lt;/label&gt;
+            &lt;button class=&quot;primary&quot; :disabled=&quot;busy || !title.trim() || !content.trim()&quot;&gt;{{ busy ? &#x27;Saving…&#x27; : editingId ? &#x27;Save changes&#x27; : &#x27;Publish post&#x27; }}&lt;/button&gt;
+            &lt;button v-if=&quot;editingId&quot; type=&quot;button&quot; class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;resetForm&quot;&gt;Cancel editing&lt;/button&gt;
+          &lt;/form&gt;&lt;/div&gt;
+        &lt;/section&gt;
+      &lt;/aside&gt;
+      &lt;section class=&quot;board&quot;&gt;&lt;div class=&quot;board-heading&quot;&gt;&lt;h2&gt;The latest&lt;/h2&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;loading || busy&quot; @click=&quot;loadPosts&quot;&gt;Refresh&lt;/button&gt;&lt;/div&gt;
+        &lt;p v-if=&quot;loading&quot; role=&quot;status&quot; class=&quot;empty&quot;&gt;Loading posts…&lt;/p&gt;
+        &lt;p v-else-if=&quot;!posts.length&quot; class=&quot;empty&quot;&gt;The board is ready for your first idea.&lt;/p&gt;
+        &lt;article v-for=&quot;post in posts&quot; :key=&quot;post.id&quot; class=&quot;post&quot;&gt;&lt;div class=&quot;post-meta&quot;&gt;&lt;time :datetime=&quot;post.createdAt&quot;&gt;{{ dateLabel(post.createdAt) }}&lt;/time&gt;&lt;span v-if=&quot;user?.id === post.ownerId&quot;&gt;Your post&lt;/span&gt;&lt;/div&gt;&lt;h3&gt;{{ post.title }}&lt;/h3&gt;&lt;p class=&quot;post-content&quot;&gt;{{ post.content }}&lt;/p&gt;
+          &lt;div v-if=&quot;user?.id === post.ownerId&quot; class=&quot;post-actions&quot;&gt;&lt;button :disabled=&quot;busy&quot; @click=&quot;startEdit(post)&quot;&gt;Edit&lt;/button&gt;&lt;button :disabled=&quot;busy&quot; @click=&quot;removePost(post)&quot;&gt;Delete&lt;/button&gt;&lt;/div&gt;
+        &lt;/article&gt;&lt;p class=&quot;hint&quot;&gt;Showing the latest {{ posts.length }} posts, up to 50.&lt;/p&gt;
+      &lt;/section&gt;
+    &lt;/div&gt;
+  &lt;/main&gt;&lt;footer&gt;Campus Board / English section / MacsLAB&lt;/footer&gt;
+&lt;/template&gt;
+</pre></details><h2 id="step6">A06 / A delete response has no body</h2><p class="definition">Deletion removes the selected record after a confirmation step.</p><h3>confirm</h3><p>The user chooses whether to proceed.</p><h3>DELETE</h3><p>The request includes a token and the post ID.</p><h3>Refresh</h3><p>Read the list again after success.</p><h3>frontend/src/App.vue</h3><pre>async function removePost(post) {
+  if (busy.value || !window.confirm(`Delete “${post.title}”?`)) return
+  busy.value = true; resetMessages()
+  try {
+    await request(`/posts/${post.id}`, { method: &#x27;DELETE&#x27;, protectedCall: true })
+    if (editingId.value === post.id) resetForm()
+    success.value = &#x27;Post deleted.&#x27;; await loadPosts()
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}</pre><h3>Walkthrough and reasoning</h3><p>The API returns 204, so request() returns null. Trying to parse a 204 response as JSON would throw even though deletion succeeded. The browser confirmation is a usability step; the server still performs its own ownership check. This sample has no undo endpoint.</p><p class="note">A canceled confirmation sends no request.</p><p class="meta">Excerpt begins near source line 57. Read the surrounding method before editing.</p><details><summary>Complete file: frontend/src/App.vue</summary><pre>&lt;script setup&gt;
+import { ref, onMounted, onUnmounted } from &#x27;vue&#x27;
+import { request, setToken, clearToken } from &#x27;./api&#x27;
+const user = ref(null), mode = ref(&#x27;signin&#x27;), busy = ref(false), loading = ref(true)
+const name = ref(&#x27;&#x27;), email = ref(&#x27;&#x27;), password = ref(&#x27;&#x27;), confirmation = ref(&#x27;&#x27;)
+const posts = ref([]), title = ref(&#x27;&#x27;), content = ref(&#x27;&#x27;), editingId = ref(null)
+const message = ref(&#x27;&#x27;), success = ref(&#x27;&#x27;)
+function resetMessages() { message.value = &#x27;&#x27;; success.value = &#x27;&#x27; }
+function resetForm() { title.value = &#x27;&#x27;; content.value = &#x27;&#x27;; editingId.value = null }
+function changeMode() { mode.value = mode.value === &#x27;signin&#x27; ? &#x27;signup&#x27; : &#x27;signin&#x27;; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;; resetMessages() }
+function signOut() { clearToken(); user.value = null; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;; resetForm(); resetMessages() }
+function sessionExpired() { signOut(); message.value = &#x27;Your session expired. Sign in again.&#x27; }
+onMounted(() =&gt; { loadPosts(); window.addEventListener(&#x27;session-expired&#x27;, sessionExpired) })
+onUnmounted(() =&gt; window.removeEventListener(&#x27;session-expired&#x27;, sessionExpired))
+async function loadPosts() {
+  loading.value = true
+  try { posts.value = await request(&#x27;/posts&#x27;) }
+  catch (error) { message.value = error.message }
+  finally { loading.value = false }
+}
+async function authenticate() {
+  if (busy.value) return
+  resetMessages()
+  if (mode.value === &#x27;signup&#x27; &amp;&amp; password.value !== confirmation.value) { message.value = &#x27;The passwords do not match.&#x27;; return }
+  busy.value = true
+  try {
+    if (mode.value === &#x27;signup&#x27;) {
+      await request(&#x27;/auth/signup&#x27;, { method: &#x27;POST&#x27;, body: { name: name.value.trim(), email: email.value.trim(), password: password.value } })
+      mode.value = &#x27;signin&#x27;; password.value = &#x27;&#x27;; confirmation.value = &#x27;&#x27;
+      success.value = &#x27;Account created. Sign in with your password.&#x27;
+    } else {
+      const result = await request(&#x27;/auth/login&#x27;, { method: &#x27;POST&#x27;, body: { email: email.value.trim(), password: password.value } })
+      // Keep the token, then ask the server who is signed in.
+      setToken(result.accessToken)
+      user.value = await request(&#x27;/me&#x27;, { protectedCall: true })
+      password.value = &#x27;&#x27;; resetForm()
+      success.value = `Welcome, ${user.value.name}.`
+    }
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+function startEdit(post) { resetMessages(); editingId.value = post.id; title.value = post.title; content.value = post.content }
+async function savePost() {
+  if (busy.value) return
+  busy.value = true; resetMessages()
+  try {
+    const editing = editingId.value !== null
+    await request(editing ? `/posts/${editingId.value}` : &#x27;/posts&#x27;, {
+      method: editing ? &#x27;PUT&#x27; : &#x27;POST&#x27;, protectedCall: true,
+      body: { title: title.value.trim(), content: content.value.trim() },
+    })
+    resetForm(); success.value = editing ? &#x27;Post updated.&#x27; : &#x27;Post published.&#x27;
+    await loadPosts()
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+async function removePost(post) {
+  if (busy.value || !window.confirm(`Delete “${post.title}”?`)) return
+  busy.value = true; resetMessages()
+  try {
+    await request(`/posts/${post.id}`, { method: &#x27;DELETE&#x27;, protectedCall: true })
+    if (editingId.value === post.id) resetForm()
+    success.value = &#x27;Post deleted.&#x27;; await loadPosts()
+  } catch (error) { message.value = error.message }
+  finally { busy.value = false }
+}
+const dateLabel = value =&gt; new Date(value).toLocaleString()
+&lt;/script&gt;
+
+&lt;template&gt;
+  &lt;header class=&quot;site-header&quot;&gt;&lt;a class=&quot;brand&quot; href=&quot;/&quot;&gt;Campus Board&lt;span&gt;Web Service Design / Week 07&lt;/span&gt;&lt;/a&gt;&lt;a class=&quot;api-link&quot; href=&quot;/swagger-ui.html&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;API explorer ↗&lt;/a&gt;&lt;/header&gt;
+  &lt;main&gt;
+    &lt;section class=&quot;intro&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;A place for campus ideas&lt;/p&gt;&lt;h1&gt;Share something&lt;br&gt;&lt;em&gt;worth knowing.&lt;/em&gt;&lt;/h1&gt;&lt;p&gt;Read the board. Sign in to publish a post of your own.&lt;/p&gt;&lt;/section&gt;
+    &lt;div class=&quot;status-area&quot; aria-live=&quot;polite&quot;&gt;&lt;p v-if=&quot;message&quot; class=&quot;error&quot; role=&quot;alert&quot;&gt;{{ message }}&lt;/p&gt;&lt;p v-if=&quot;success&quot; class=&quot;success&quot;&gt;{{ success }}&lt;/p&gt;&lt;/div&gt;
+    &lt;div class=&quot;workspace&quot;&gt;
+      &lt;aside&gt;
+        &lt;section v-if=&quot;!user&quot; class=&quot;account&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;Your account&lt;/p&gt;&lt;h2&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Create an account&#x27; : &#x27;Welcome back&#x27; }}&lt;/h2&gt;
+          &lt;form @submit.prevent=&quot;authenticate&quot;&gt;
+            &lt;label v-if=&quot;mode === &#x27;signup&#x27;&quot;&gt;Name&lt;input v-model=&quot;name&quot; required maxlength=&quot;60&quot; autocomplete=&quot;name&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Email&lt;input v-model=&quot;email&quot; required type=&quot;email&quot; maxlength=&quot;254&quot; autocomplete=&quot;username&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Password&lt;input v-model=&quot;password&quot; required type=&quot;password&quot; :minlength=&quot;mode === &#x27;signup&#x27; ? 12 : 1&quot; maxlength=&quot;72&quot; :autocomplete=&quot;mode === &#x27;signup&#x27; ? &#x27;new-password&#x27; : &#x27;current-password&#x27;&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;label v-if=&quot;mode === &#x27;signup&#x27;&quot;&gt;Confirm password&lt;input v-model=&quot;confirmation&quot; required type=&quot;password&quot; autocomplete=&quot;new-password&quot; :disabled=&quot;busy&quot;&gt;&lt;/label&gt;
+            &lt;p class=&quot;hint&quot;&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Use 12 or more characters, up to 72 UTF-8 bytes.&#x27; : &#x27;Use the password you registered. Reloading signs you out.&#x27; }}&lt;/p&gt;
+            &lt;button class=&quot;primary&quot; :disabled=&quot;busy&quot;&gt;{{ busy ? &#x27;Please wait…&#x27; : mode === &#x27;signup&#x27; ? &#x27;Create account&#x27; : &#x27;Sign in&#x27; }}&lt;/button&gt;
+          &lt;/form&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;changeMode&quot;&gt;{{ mode === &#x27;signup&#x27; ? &#x27;Already registered? Sign in&#x27; : &#x27;New here? Create an account&#x27; }}&lt;/button&gt;
+        &lt;/section&gt;
+        &lt;section v-else class=&quot;account&quot;&gt;&lt;p class=&quot;eyebrow&quot;&gt;Signed in&lt;/p&gt;&lt;h2&gt;{{ user.name }}&lt;/h2&gt;&lt;p class=&quot;email&quot;&gt;{{ user.email }}&lt;/p&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;signOut&quot;&gt;Sign out&lt;/button&gt;
+          &lt;div class=&quot;compose&quot;&gt;&lt;h3&gt;{{ editingId ? &#x27;Edit your post&#x27; : &#x27;A new post&#x27; }}&lt;/h3&gt;&lt;form @submit.prevent=&quot;savePost&quot;&gt;
+            &lt;label&gt;Title&lt;input v-model=&quot;title&quot; required maxlength=&quot;120&quot; :disabled=&quot;busy&quot; placeholder=&quot;What would you like to share?&quot;&gt;&lt;/label&gt;
+            &lt;label&gt;Message&lt;textarea v-model=&quot;content&quot; required maxlength=&quot;4000&quot; rows=&quot;6&quot; :disabled=&quot;busy&quot; placeholder=&quot;Add the details…&quot;&gt;&lt;/textarea&gt;&lt;/label&gt;
+            &lt;button class=&quot;primary&quot; :disabled=&quot;busy || !title.trim() || !content.trim()&quot;&gt;{{ busy ? &#x27;Saving…&#x27; : editingId ? &#x27;Save changes&#x27; : &#x27;Publish post&#x27; }}&lt;/button&gt;
+            &lt;button v-if=&quot;editingId&quot; type=&quot;button&quot; class=&quot;text-button&quot; :disabled=&quot;busy&quot; @click=&quot;resetForm&quot;&gt;Cancel editing&lt;/button&gt;
+          &lt;/form&gt;&lt;/div&gt;
+        &lt;/section&gt;
+      &lt;/aside&gt;
+      &lt;section class=&quot;board&quot;&gt;&lt;div class=&quot;board-heading&quot;&gt;&lt;h2&gt;The latest&lt;/h2&gt;&lt;button class=&quot;text-button&quot; :disabled=&quot;loading || busy&quot; @click=&quot;loadPosts&quot;&gt;Refresh&lt;/button&gt;&lt;/div&gt;
+        &lt;p v-if=&quot;loading&quot; role=&quot;status&quot; class=&quot;empty&quot;&gt;Loading posts…&lt;/p&gt;
+        &lt;p v-else-if=&quot;!posts.length&quot; class=&quot;empty&quot;&gt;The board is ready for your first idea.&lt;/p&gt;
+        &lt;article v-for=&quot;post in posts&quot; :key=&quot;post.id&quot; class=&quot;post&quot;&gt;&lt;div class=&quot;post-meta&quot;&gt;&lt;time :datetime=&quot;post.createdAt&quot;&gt;{{ dateLabel(post.createdAt) }}&lt;/time&gt;&lt;span v-if=&quot;user?.id === post.ownerId&quot;&gt;Your post&lt;/span&gt;&lt;/div&gt;&lt;h3&gt;{{ post.title }}&lt;/h3&gt;&lt;p class=&quot;post-content&quot;&gt;{{ post.content }}&lt;/p&gt;
+          &lt;div v-if=&quot;user?.id === post.ownerId&quot; class=&quot;post-actions&quot;&gt;&lt;button :disabled=&quot;busy&quot; @click=&quot;startEdit(post)&quot;&gt;Edit&lt;/button&gt;&lt;button :disabled=&quot;busy&quot; @click=&quot;removePost(post)&quot;&gt;Delete&lt;/button&gt;&lt;/div&gt;
+        &lt;/article&gt;&lt;p class=&quot;hint&quot;&gt;Showing the latest {{ posts.length }} posts, up to 50.&lt;/p&gt;
+      &lt;/section&gt;
+    &lt;/div&gt;
+  &lt;/main&gt;&lt;footer&gt;Campus Board / English section / MacsLAB&lt;/footer&gt;
+&lt;/template&gt;
+</pre></details><h2 id="step7">A07 / A Vite development proxy</h2><p class="definition">A proxy forwards a request to another server.</p><h3>Browser</h3><p>Requests /api on localhost:15707.</p><h3>Vite</h3><p>Forwards it to localhost:18707.</p><h3>Production</h3><p>Both paths already share the Render origin.</p><h3>frontend/vite.config.js</h3><pre>export default defineConfig({
+  plugins: [vue()],
+  server: { port: 15707, strictPort: true, proxy: { &#x27;/api&#x27;: &#x27;http://127.0.0.1:18707&#x27;, &#x27;/swagger-ui&#x27;: &#x27;http://127.0.0.1:18707&#x27;, &#x27;/v3/api-docs&#x27;: &#x27;http://127.0.0.1:18707&#x27; } },
+})</pre><h3>Walkthrough and reasoning</h3><p>The proxy also forwards Swagger paths so the API explorer link works during local practice. It does not ship as a separate proxy server in dist. The production JAR includes the Vue files. If you later deploy Vue on a separate origin, you must intentionally configure API base URLs and CORS; that is a separate extension.</p><p class="note">The proxy is a development setting.</p><p class="meta">Excerpt begins near source line 3. Read the surrounding method before editing.</p><details><summary>Complete file: frontend/vite.config.js</summary><pre>import { defineConfig } from &#x27;vite&#x27;
+import vue from &#x27;@vitejs/plugin-vue&#x27;
+export default defineConfig({
+  plugins: [vue()],
+  server: { port: 15707, strictPort: true, proxy: { &#x27;/api&#x27;: &#x27;http://127.0.0.1:18707&#x27;, &#x27;/swagger-ui&#x27;: &#x27;http://127.0.0.1:18707&#x27;, &#x27;/v3/api-docs&#x27;: &#x27;http://127.0.0.1:18707&#x27; } },
+})
+</pre></details><h2 id="step8">A08 / A validated request DTO</h2><p class="definition">A DTO carries a defined set of data across an API boundary.</p><h3>record</h3><p>A compact Java data type.</p><h3>@NotBlank</h3><p>Reject null, empty, or whitespace-only text.</p><h3>@Size</h3><p>Limit title and content lengths.</p><h3>backend/src/main/java/edu/macslab/board/ApiModels.java</h3><pre>public record PostInput(@NotBlank @Size(max=120) String title,
+                        @NotBlank @Size(max=4000) String content) {}</pre><h3>Walkthrough and reasoning</h3><p>The controller’s @Valid triggers validation before the service runs. The application also rejects unknown JSON properties. A frontend maxlength is helpful feedback but can be bypassed by another HTTP client. Server validation therefore remains necessary. PostView is a different DTO with server-generated fields.</p><p class="note">PostInput has no ownerId field.</p><p class="meta">Excerpt begins near source line 17. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/ApiModels.java</summary><pre>package edu.macslab.board;
+import jakarta.validation.constraints.*;
+import java.time.Instant;
+import java.util.UUID;
+public final class ApiModels {
+    private ApiModels() {}
+    public record Signup(@NotBlank @Size(max=60) String name,
+                         @NotBlank @Email @Size(max=254) String email,
+                         @NotBlank @Size(min=12,max=72) String password) {}
+    public record Login(@NotBlank @Email @Size(max=254) String email,
+                        @NotBlank @Size(max=72) String password) {}
+    public record UserView(UUID id, String name, String email) {
+        static UserView of(AppUser u) { return new UserView(u.id,u.name,u.email); }
+    }
+    public record LoginResult(String accessToken, String tokenType, long expiresIn, UserView user) {}
+    // ownerId is deliberately absent. The server reads it from the verified JWT.
+    public record PostInput(@NotBlank @Size(max=120) String title,
+                            @NotBlank @Size(max=4000) String content) {}
+    public record PostView(UUID id, UUID ownerId, String title, String content,
+                           Instant createdAt, Instant updatedAt) {
+        static PostView of(Post p) { return new PostView(p.id,p.ownerId,p.title,p.content,p.createdAt,p.updatedAt); }
+    }
+    public record ErrorView(String code, String message) {}
+}
+</pre></details><h2 id="step9">A09 / Controller input and identity</h2><p class="definition">A controller maps an HTTP request to an application operation.</p><h3>Body</h3><p>@RequestBody reads JSON into PostInput.</p><h3>Validation</h3><p>@Valid checks the DTO constraints.</p><h3>Principal</h3><p>@AuthenticationPrincipal receives a verified Jwt.</p><h3>backend/src/main/java/edu/macslab/board/PostController.java</h3><pre>@PostMapping @ResponseStatus(HttpStatus.CREATED) @SecurityRequirement(name=&quot;bearerAuth&quot;)
+@Operation(summary=&quot;Create a post as the signed-in user&quot;)
+public PostView create(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody PostInput input) {
+    return posts.create(UUID.fromString(jwt.getSubject()),input);
+}
+@PutMapping(&quot;/{id}&quot;) @SecurityRequirement(name=&quot;bearerAuth&quot;) @Operation(summary=&quot;Edit your own post&quot;)</pre><h3>Walkthrough and reasoning</h3><p>SecurityFilterChain processes authentication before this controller method. A valid subject contains the user UUID, enforced by the decoder’s validator. The controller passes that value separately from editable post fields. @ResponseStatus(CREATED) makes a successful create return 201. The OpenAPI security annotation documents the requirement; Spring Security enforces it.</p><p class="note">The service gets identity from jwt.getSubject().</p><p class="meta">Excerpt begins near source line 19. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/PostController.java</summary><pre>package edu.macslab.board;
+import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.*;
+import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.security.oauth2.jwt.Jwt;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import static edu.macslab.board.ApiModels.*;
+import java.util.*;
+@RestController @RequestMapping(&quot;/api/posts&quot;)
+public class PostController {
+    private final PostService posts;
+    PostController(PostService posts) { this.posts=posts; }
+    @GetMapping @Operation(summary=&quot;Read the latest 50 public posts&quot;)
+    public List&lt;PostView&gt; list() { return posts.list(); }
+    @GetMapping(&quot;/{id}&quot;) @Operation(summary=&quot;Read one public post&quot;)
+    public PostView get(@PathVariable UUID id) { return posts.get(id); }
+    @PostMapping @ResponseStatus(HttpStatus.CREATED) @SecurityRequirement(name=&quot;bearerAuth&quot;)
+    @Operation(summary=&quot;Create a post as the signed-in user&quot;)
+    public PostView create(@AuthenticationPrincipal Jwt jwt,@Valid @RequestBody PostInput input) {
+        return posts.create(UUID.fromString(jwt.getSubject()),input);
+    }
+    @PutMapping(&quot;/{id}&quot;) @SecurityRequirement(name=&quot;bearerAuth&quot;) @Operation(summary=&quot;Edit your own post&quot;)
+    public PostView update(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id,@Valid @RequestBody PostInput input) {
+        return posts.update(UUID.fromString(jwt.getSubject()),id,input);
+    }
+    @DeleteMapping(&quot;/{id}&quot;) @ResponseStatus(HttpStatus.NO_CONTENT) @SecurityRequirement(name=&quot;bearerAuth&quot;)
+    @Operation(summary=&quot;Delete your own post&quot;)
+    public void delete(@AuthenticationPrincipal Jwt jwt,@PathVariable UUID id) {
+        posts.delete(UUID.fromString(jwt.getSubject()),id);
+    }
+}
+</pre></details><h2 id="step10">A10 / Password hashing on registration</h2><p class="definition">Hashing makes a stored password representation suitable for verification.</p><h3>Input</h3><p>The raw password exists during this request.</p><h3>encode</h3><p>BCrypt adds a salt and performs the password hash.</p><h3>Storage</h3><p>Only passwordHash goes into app_user.</p><h3>backend/src/main/java/edu/macslab/board/AuthService.java</h3><pre>private String encodePassword(String password) {
+    return passwords.encode(password);
+}</pre><h3>Walkthrough and reasoning</h3><p>The PasswordEncoder bean uses BCrypt strength 12. The UserView response excludes passwordHash. The database column has enough space for the BCrypt encoding. The input guard checks the 72-byte limit as well as registration length. Encrypting a password and keeping a decryption key would create a different and unnecessary risk for this login flow.</p><p class="note">Do not log the password or return the entity.</p><p class="meta">Excerpt begins near source line 32. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/AuthService.java</summary><pre>package edu.macslab.board;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import static org.springframework.http.HttpStatus.*;
+import static edu.macslab.board.ApiModels.*;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.*;
+@Service
+public class AuthService {
+    private final UserRepository users;
+    private final PasswordEncoder passwords;
+    private final JwtEncoder encoder;
+    private final String issuer;
+    private final long ttl;
+    private final String dummyHash;
+    AuthService(UserRepository users,PasswordEncoder passwords,JwtEncoder encoder,
+                @Value(&quot;${app.jwt.issuer}&quot;) String issuer,@Value(&quot;${app.jwt.ttl-seconds}&quot;) long ttl) {
+        this.users=users;this.passwords=passwords;this.encoder=encoder;this.issuer=issuer;this.ttl=ttl;
+        this.dummyHash=passwords.encode(UUID.randomUUID().toString());
+    }
+    private String normalizedEmail(String value) { return value.strip().toLowerCase(Locale.ROOT); }
+    private void validatePassword(String password) {
+        // BCrypt has a 72-byte input limit, which differs from 72 characters.
+        if (password.getBytes(StandardCharsets.UTF_8).length&gt;72)
+            throw new ApiException(BAD_REQUEST,&quot;INVALID_INPUT&quot;,&quot;Use a password of at most 72 UTF-8 bytes.&quot;);
+    }
+    private String encodePassword(String password) {
+        return passwords.encode(password);
+    }
+    @Transactional
+    public UserView signup(Signup input) {
+        validatePassword(input.password());
+        String email=normalizedEmail(input.email());
+        if(users.findByEmail(email).isPresent()) throw new ApiException(CONFLICT,&quot;EMAIL_EXISTS&quot;,&quot;This email is already registered.&quot;);
+        // Store a password hash. Never store the original password.
+        String hash=encodePassword(input.password());
+        return UserView.of(users.saveAndFlush(new AppUser(input.name().strip(),email,hash)));
+    }
+    @Transactional(readOnly=true)
+    public LoginResult login(Login input) {
+        validatePassword(input.password());
+        var found=users.findByEmail(normalizedEmail(input.email()));
+        // A missing email still goes through the password comparison step.
+        boolean matches=passwords.matches(input.password(),found.map(u-&gt;u.passwordHash).orElse(dummyHash));
+        if(found.isEmpty() || !matches) throw new ApiException(UNAUTHORIZED,&quot;INVALID_CREDENTIALS&quot;,&quot;Email or password is incorrect.&quot;);
+        AppUser user=found.get(); Instant now=Instant.now();
+        var claims=JwtClaimsSet.builder().issuer(issuer).subject(user.id.toString())
+            .issuedAt(now).expiresAt(now.plusSeconds(ttl)).build();
+        String token=encoder.encode(JwtEncoderParameters.from(
+            JwsHeader.with(MacAlgorithm.HS256).build(),claims)).getTokenValue();
+        return new LoginResult(token,&quot;Bearer&quot;,ttl,UserView.of(user));
+    }
+    @Transactional(readOnly=true)
+    public UserView current(UUID id) {
+        return UserView.of(users.findById(id).orElseThrow(()-&gt;
+            new ApiException(UNAUTHORIZED,&quot;UNAUTHENTICATED&quot;,&quot;This account no longer exists.&quot;)));
+    }
+}
+</pre></details><h2 id="step11">A11 / Password matching on login</h2><p class="definition">Verification checks a raw input against the stored encoded value.</p><h3>Email</h3><p>Normalize and look up the account.</p><h3>matches</h3><p>Compare against its BCrypt hash.</p><h3>Failure</h3><p>Use the same credential error for unknown email or wrong password.</p><h3>backend/src/main/java/edu/macslab/board/AuthService.java</h3><pre>var found=users.findByEmail(normalizedEmail(input.email()));
+// A missing email still goes through the password comparison step.
+boolean matches=passwords.matches(input.password(),found.map(u-&gt;u.passwordHash).orElse(dummyHash));
+if(found.isEmpty() || !matches) throw new ApiException(UNAUTHORIZED,&quot;INVALID_CREDENTIALS&quot;,&quot;Email or password is incorrect.&quot;);
+AppUser user=found.get(); Instant now=Instant.now();</pre><h3>Walkthrough and reasoning</h3><p>BCrypt’s random salt makes repeated encodings differ. matches understands the stored format. When no account exists, the sample still compares against a dummy hash to avoid skipping the expensive check entirely. This does not replace a rate limit. Successful login proceeds to create JWT claims.</p><p class="note">A new encode result is not compared with string equality.</p><p class="meta">Excerpt begins near source line 47. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/AuthService.java</summary><pre>package edu.macslab.board;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import static org.springframework.http.HttpStatus.*;
+import static edu.macslab.board.ApiModels.*;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.*;
+@Service
+public class AuthService {
+    private final UserRepository users;
+    private final PasswordEncoder passwords;
+    private final JwtEncoder encoder;
+    private final String issuer;
+    private final long ttl;
+    private final String dummyHash;
+    AuthService(UserRepository users,PasswordEncoder passwords,JwtEncoder encoder,
+                @Value(&quot;${app.jwt.issuer}&quot;) String issuer,@Value(&quot;${app.jwt.ttl-seconds}&quot;) long ttl) {
+        this.users=users;this.passwords=passwords;this.encoder=encoder;this.issuer=issuer;this.ttl=ttl;
+        this.dummyHash=passwords.encode(UUID.randomUUID().toString());
+    }
+    private String normalizedEmail(String value) { return value.strip().toLowerCase(Locale.ROOT); }
+    private void validatePassword(String password) {
+        // BCrypt has a 72-byte input limit, which differs from 72 characters.
+        if (password.getBytes(StandardCharsets.UTF_8).length&gt;72)
+            throw new ApiException(BAD_REQUEST,&quot;INVALID_INPUT&quot;,&quot;Use a password of at most 72 UTF-8 bytes.&quot;);
+    }
+    private String encodePassword(String password) {
+        return passwords.encode(password);
+    }
+    @Transactional
+    public UserView signup(Signup input) {
+        validatePassword(input.password());
+        String email=normalizedEmail(input.email());
+        if(users.findByEmail(email).isPresent()) throw new ApiException(CONFLICT,&quot;EMAIL_EXISTS&quot;,&quot;This email is already registered.&quot;);
+        // Store a password hash. Never store the original password.
+        String hash=encodePassword(input.password());
+        return UserView.of(users.saveAndFlush(new AppUser(input.name().strip(),email,hash)));
+    }
+    @Transactional(readOnly=true)
+    public LoginResult login(Login input) {
+        validatePassword(input.password());
+        var found=users.findByEmail(normalizedEmail(input.email()));
+        // A missing email still goes through the password comparison step.
+        boolean matches=passwords.matches(input.password(),found.map(u-&gt;u.passwordHash).orElse(dummyHash));
+        if(found.isEmpty() || !matches) throw new ApiException(UNAUTHORIZED,&quot;INVALID_CREDENTIALS&quot;,&quot;Email or password is incorrect.&quot;);
+        AppUser user=found.get(); Instant now=Instant.now();
+        var claims=JwtClaimsSet.builder().issuer(issuer).subject(user.id.toString())
+            .issuedAt(now).expiresAt(now.plusSeconds(ttl)).build();
+        String token=encoder.encode(JwtEncoderParameters.from(
+            JwsHeader.with(MacAlgorithm.HS256).build(),claims)).getTokenValue();
+        return new LoginResult(token,&quot;Bearer&quot;,ttl,UserView.of(user));
+    }
+    @Transactional(readOnly=true)
+    public UserView current(UUID id) {
+        return UserView.of(users.findById(id).orElseThrow(()-&gt;
+            new ApiException(UNAUTHORIZED,&quot;UNAUTHENTICATED&quot;,&quot;This account no longer exists.&quot;)));
+    }
+}
+</pre></details><h2 id="step12">A12 / JWT issuance</h2><p class="definition">A signed token carries claims the server can later validate.</p><h3>sub</h3><p>The user UUID.</p><h3>iss and exp</h3><p>Issuer identity and expiration time.</p><h3>HS256</h3><p>The configured encoder signs the claims with the secret.</p><h3>backend/src/main/java/edu/macslab/board/AuthService.java</h3><pre>    var claims=JwtClaimsSet.builder().issuer(issuer).subject(user.id.toString())
+        .issuedAt(now).expiresAt(now.plusSeconds(ttl)).build();
+    String token=encoder.encode(JwtEncoderParameters.from(
+        JwsHeader.with(MacAlgorithm.HS256).build(),claims)).getTokenValue();
+    return new LoginResult(token,&quot;Bearer&quot;,ttl,UserView.of(user));
+}</pre><h3>Walkthrough and reasoning</h3><p>issuedAt records issuance. expiresAt is now plus 1,800 seconds. NimbusJwtEncoder constructs the compact token using JwsHeader with HS256. The random backend secret must remain stable across production instances that accept these tokens. Changing the secret makes earlier signatures invalid.</p><p class="note">The response includes a token, not the signing secret.</p><p class="meta">Excerpt begins near source line 52. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/AuthService.java</summary><pre>package edu.macslab.board;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import static org.springframework.http.HttpStatus.*;
+import static edu.macslab.board.ApiModels.*;
+import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.util.*;
+@Service
+public class AuthService {
+    private final UserRepository users;
+    private final PasswordEncoder passwords;
+    private final JwtEncoder encoder;
+    private final String issuer;
+    private final long ttl;
+    private final String dummyHash;
+    AuthService(UserRepository users,PasswordEncoder passwords,JwtEncoder encoder,
+                @Value(&quot;${app.jwt.issuer}&quot;) String issuer,@Value(&quot;${app.jwt.ttl-seconds}&quot;) long ttl) {
+        this.users=users;this.passwords=passwords;this.encoder=encoder;this.issuer=issuer;this.ttl=ttl;
+        this.dummyHash=passwords.encode(UUID.randomUUID().toString());
+    }
+    private String normalizedEmail(String value) { return value.strip().toLowerCase(Locale.ROOT); }
+    private void validatePassword(String password) {
+        // BCrypt has a 72-byte input limit, which differs from 72 characters.
+        if (password.getBytes(StandardCharsets.UTF_8).length&gt;72)
+            throw new ApiException(BAD_REQUEST,&quot;INVALID_INPUT&quot;,&quot;Use a password of at most 72 UTF-8 bytes.&quot;);
+    }
+    private String encodePassword(String password) {
+        return passwords.encode(password);
+    }
+    @Transactional
+    public UserView signup(Signup input) {
+        validatePassword(input.password());
+        String email=normalizedEmail(input.email());
+        if(users.findByEmail(email).isPresent()) throw new ApiException(CONFLICT,&quot;EMAIL_EXISTS&quot;,&quot;This email is already registered.&quot;);
+        // Store a password hash. Never store the original password.
+        String hash=encodePassword(input.password());
+        return UserView.of(users.saveAndFlush(new AppUser(input.name().strip(),email,hash)));
+    }
+    @Transactional(readOnly=true)
+    public LoginResult login(Login input) {
+        validatePassword(input.password());
+        var found=users.findByEmail(normalizedEmail(input.email()));
+        // A missing email still goes through the password comparison step.
+        boolean matches=passwords.matches(input.password(),found.map(u-&gt;u.passwordHash).orElse(dummyHash));
+        if(found.isEmpty() || !matches) throw new ApiException(UNAUTHORIZED,&quot;INVALID_CREDENTIALS&quot;,&quot;Email or password is incorrect.&quot;);
+        AppUser user=found.get(); Instant now=Instant.now();
+        var claims=JwtClaimsSet.builder().issuer(issuer).subject(user.id.toString())
+            .issuedAt(now).expiresAt(now.plusSeconds(ttl)).build();
+        String token=encoder.encode(JwtEncoderParameters.from(
+            JwsHeader.with(MacAlgorithm.HS256).build(),claims)).getTokenValue();
+        return new LoginResult(token,&quot;Bearer&quot;,ttl,UserView.of(user));
+    }
+    @Transactional(readOnly=true)
+    public UserView current(UUID id) {
+        return UserView.of(users.findById(id).orElseThrow(()-&gt;
+            new ApiException(UNAUTHORIZED,&quot;UNAUTHENTICATED&quot;,&quot;This account no longer exists.&quot;)));
+    }
+}
+</pre></details><h2 id="step13">A13 / Public and protected endpoints</h2><p class="definition">A filter chain applies security rules before controller methods.</p><h3>Public</h3><p>Signup, login, and GET posts.</p><h3>Protected</h3><p>Other /api paths require authentication.</p><h3>Static files</h3><p>The Vue assets, health, and API documentation are allowed.</p><h3>backend/src/main/java/edu/macslab/board/SecurityConfig.java</h3><pre>.authorizeHttpRequests(r-&gt;r
+    .requestMatchers(HttpMethod.POST,&quot;/api/auth/signup&quot;,&quot;/api/auth/login&quot;).permitAll()
+    .requestMatchers(HttpMethod.GET,&quot;/api/posts&quot;,&quot;/api/posts/*&quot;).permitAll()
+    .requestMatchers(&quot;/api/**&quot;).authenticated()</pre><h3>Walkthrough and reasoning</h3><p>PermitAll for a GET path does not permit POST, PUT, or DELETE on that path. The /api/** authenticated rule covers /me and writes. A valid authenticated identity alone does not prove post ownership, which the service checks. Resource-server JWT processing validates the bearer token before protected operations proceed.</p><p class="note">The first matching request rule determines access at this layer.</p><p class="meta">Excerpt begins near source line 69. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/SecurityConfig.java</summary><pre>package edu.macslab.board;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import java.util.Base64;
+import java.security.SecureRandom;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.*;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.*;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.web.SecurityFilterChain;
+import java.util.UUID;
+
+@Configuration
+public class SecurityConfig {
+    @Bean PasswordEncoder passwords() { return new BCryptPasswordEncoder(12); }
+    @Bean SecretKey jwtKey(@Value(&quot;${app.jwt.secret:}&quot;) String configured, Environment env) {
+        byte[] bytes;
+        if (configured.isBlank()) {
+            if (!env.acceptsProfiles(Profiles.of(&quot;local&quot;,&quot;test&quot;)))
+                throw new IllegalStateException(&quot;JWT_SECRET must be set outside local/test.&quot;);
+            bytes=new byte[32]; new SecureRandom().nextBytes(bytes);
+        } else {
+            try { bytes=Base64.getDecoder().decode(configured); }
+            catch (IllegalArgumentException e) { throw new IllegalStateException(&quot;JWT_SECRET must be Base64.&quot;); }
+            if (bytes.length&lt;32) throw new IllegalStateException(&quot;JWT_SECRET requires at least 32 random bytes.&quot;);
+        }
+        return new SecretKeySpec(bytes,&quot;HmacSHA256&quot;);
+    }
+    @Bean JwtEncoder jwtEncoder(SecretKey key) { return new NimbusJwtEncoder(new ImmutableSecret&lt;&gt;(key)); }
+    @Bean JwtDecoder jwtDecoder(SecretKey key,@Value(&quot;${app.jwt.issuer}&quot;) String issuer) {
+        var decoder=NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        OAuth2TokenValidator&lt;Jwt&gt; shape=jwt -&gt; {
+            try {
+                UUID.fromString(jwt.getSubject());
+                if (jwt.getExpiresAt()==null) throw new IllegalArgumentException();
+                return OAuth2TokenValidatorResult.success();
+            } catch (Exception e) {
+                return OAuth2TokenValidatorResult.failure(new OAuth2Error(&quot;invalid_token&quot;));
+            }
+        };
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator&lt;&gt;(
+            JwtValidators.createDefaultWithIssuer(issuer),shape));
+        return decoder;
+    }
+    @Bean SecurityFilterChain apiSecurity(HttpSecurity http,ObjectMapper json) throws Exception {
+        var unauthenticated=(org.springframework.security.web.AuthenticationEntryPoint)(req,res,error)-&gt;{
+            res.setStatus(401);res.setContentType(&quot;application/json&quot;);
+            res.setHeader(&quot;WWW-Authenticate&quot;,&quot;Bearer&quot;);
+            json.writeValue(res.getOutputStream(),new ApiModels.ErrorView(&quot;UNAUTHENTICATED&quot;,&quot;Sign in with a valid, unexpired token.&quot;));
+        };
+        var forbidden=(org.springframework.security.web.access.AccessDeniedHandler)(req,res,error)-&gt;{
+            res.setStatus(403);res.setContentType(&quot;application/json&quot;);
+            json.writeValue(res.getOutputStream(),new ApiModels.ErrorView(&quot;FORBIDDEN&quot;,&quot;You cannot perform this action.&quot;));
+        };
+        return http
+            // This API uses an Authorization header, never a session cookie.
+            .csrf(csrf-&gt;csrf.disable())
+            .sessionManagement(s-&gt;s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(r-&gt;r
+                .requestMatchers(HttpMethod.POST,&quot;/api/auth/signup&quot;,&quot;/api/auth/login&quot;).permitAll()
+                .requestMatchers(HttpMethod.GET,&quot;/api/posts&quot;,&quot;/api/posts/*&quot;).permitAll()
+                .requestMatchers(&quot;/api/**&quot;).authenticated()
+                .requestMatchers(&quot;/actuator/health&quot;,&quot;/actuator/health/**&quot;,&quot;/&quot;,&quot;/index.html&quot;,&quot;/assets/**&quot;,
+                    &quot;/favicon.ico&quot;,&quot;/swagger-ui.html&quot;,&quot;/swagger-ui/**&quot;,&quot;/v3/api-docs/**&quot;,&quot;/error&quot;).permitAll()
+                .anyRequest().denyAll())
+            .oauth2ResourceServer(o-&gt;o.jwt(j-&gt;{}).authenticationEntryPoint(unauthenticated).accessDeniedHandler(forbidden))
+            .exceptionHandling(e-&gt;e.authenticationEntryPoint(unauthenticated).accessDeniedHandler(forbidden))
+            .build();
+    }
+}
+</pre></details><h2 id="step14">A14 / A secret with no production fallback</h2><p class="definition">Configuration should fail clearly when required credentials are absent.</p><h3>Local / test</h3><p>A missing secret generates a temporary random key.</p><h3>Other profiles</h3><p>A missing secret stops startup.</p><h3>Provided value</h3><p>Base64 decode and minimum-byte validation.</p><h3>backend/src/main/java/edu/macslab/board/SecurityConfig.java</h3><pre>if (configured.isBlank()) {
+    if (!env.acceptsProfiles(Profiles.of(&quot;local&quot;,&quot;test&quot;)))
+        throw new IllegalStateException(&quot;JWT_SECRET must be set outside local/test.&quot;);
+    bytes=new byte[32]; new SecureRandom().nextBytes(bytes);
+} else {
+    try { bytes=Base64.getDecoder().decode(configured); }
+    catch (IllegalArgumentException e) { throw new IllegalStateException(&quot;JWT_SECRET must be Base64.&quot;); }
+    if (bytes.length&lt;32) throw new IllegalStateException(&quot;JWT_SECRET requires at least 32 random bytes.&quot;);
+}
+return new SecretKeySpec(bytes,&quot;HmacSHA256&quot;);</pre><h3>Walkthrough and reasoning</h3><p>The prod YAML requires JWT_SECRET. The bean independently refuses missing secrets outside local/test. Tests use a clearly test-only value in src/test/resources, which the production JAR does not include. The Node generation command gives a fresh secret for each student. Environment variables are not a license to expose secrets to frontend code.</p><p class="note">An example secret is not shipped as a production default.</p><p class="meta">Excerpt begins near source line 28. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/SecurityConfig.java</summary><pre>package edu.macslab.board;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import java.util.Base64;
+import java.security.SecureRandom;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.*;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.*;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.web.SecurityFilterChain;
+import java.util.UUID;
+
+@Configuration
+public class SecurityConfig {
+    @Bean PasswordEncoder passwords() { return new BCryptPasswordEncoder(12); }
+    @Bean SecretKey jwtKey(@Value(&quot;${app.jwt.secret:}&quot;) String configured, Environment env) {
+        byte[] bytes;
+        if (configured.isBlank()) {
+            if (!env.acceptsProfiles(Profiles.of(&quot;local&quot;,&quot;test&quot;)))
+                throw new IllegalStateException(&quot;JWT_SECRET must be set outside local/test.&quot;);
+            bytes=new byte[32]; new SecureRandom().nextBytes(bytes);
+        } else {
+            try { bytes=Base64.getDecoder().decode(configured); }
+            catch (IllegalArgumentException e) { throw new IllegalStateException(&quot;JWT_SECRET must be Base64.&quot;); }
+            if (bytes.length&lt;32) throw new IllegalStateException(&quot;JWT_SECRET requires at least 32 random bytes.&quot;);
+        }
+        return new SecretKeySpec(bytes,&quot;HmacSHA256&quot;);
+    }
+    @Bean JwtEncoder jwtEncoder(SecretKey key) { return new NimbusJwtEncoder(new ImmutableSecret&lt;&gt;(key)); }
+    @Bean JwtDecoder jwtDecoder(SecretKey key,@Value(&quot;${app.jwt.issuer}&quot;) String issuer) {
+        var decoder=NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        OAuth2TokenValidator&lt;Jwt&gt; shape=jwt -&gt; {
+            try {
+                UUID.fromString(jwt.getSubject());
+                if (jwt.getExpiresAt()==null) throw new IllegalArgumentException();
+                return OAuth2TokenValidatorResult.success();
+            } catch (Exception e) {
+                return OAuth2TokenValidatorResult.failure(new OAuth2Error(&quot;invalid_token&quot;));
+            }
+        };
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator&lt;&gt;(
+            JwtValidators.createDefaultWithIssuer(issuer),shape));
+        return decoder;
+    }
+    @Bean SecurityFilterChain apiSecurity(HttpSecurity http,ObjectMapper json) throws Exception {
+        var unauthenticated=(org.springframework.security.web.AuthenticationEntryPoint)(req,res,error)-&gt;{
+            res.setStatus(401);res.setContentType(&quot;application/json&quot;);
+            res.setHeader(&quot;WWW-Authenticate&quot;,&quot;Bearer&quot;);
+            json.writeValue(res.getOutputStream(),new ApiModels.ErrorView(&quot;UNAUTHENTICATED&quot;,&quot;Sign in with a valid, unexpired token.&quot;));
+        };
+        var forbidden=(org.springframework.security.web.access.AccessDeniedHandler)(req,res,error)-&gt;{
+            res.setStatus(403);res.setContentType(&quot;application/json&quot;);
+            json.writeValue(res.getOutputStream(),new ApiModels.ErrorView(&quot;FORBIDDEN&quot;,&quot;You cannot perform this action.&quot;));
+        };
+        return http
+            // This API uses an Authorization header, never a session cookie.
+            .csrf(csrf-&gt;csrf.disable())
+            .sessionManagement(s-&gt;s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(r-&gt;r
+                .requestMatchers(HttpMethod.POST,&quot;/api/auth/signup&quot;,&quot;/api/auth/login&quot;).permitAll()
+                .requestMatchers(HttpMethod.GET,&quot;/api/posts&quot;,&quot;/api/posts/*&quot;).permitAll()
+                .requestMatchers(&quot;/api/**&quot;).authenticated()
+                .requestMatchers(&quot;/actuator/health&quot;,&quot;/actuator/health/**&quot;,&quot;/&quot;,&quot;/index.html&quot;,&quot;/assets/**&quot;,
+                    &quot;/favicon.ico&quot;,&quot;/swagger-ui.html&quot;,&quot;/swagger-ui/**&quot;,&quot;/v3/api-docs/**&quot;,&quot;/error&quot;).permitAll()
+                .anyRequest().denyAll())
+            .oauth2ResourceServer(o-&gt;o.jwt(j-&gt;{}).authenticationEntryPoint(unauthenticated).accessDeniedHandler(forbidden))
+            .exceptionHandling(e-&gt;e.authenticationEntryPoint(unauthenticated).accessDeniedHandler(forbidden))
+            .build();
+    }
+}
+</pre></details><h2 id="step15">A15 / JWT verification</h2><p class="definition">Verification checks authenticity and claim validity before accepting identity.</p><h3>Signature</h3><p>The decoder accepts the configured HS256 key.</p><h3>Claims</h3><p>Default issuer/time validation plus a UUID subject and expiry requirement.</p><h3>Failure</h3><p>The filter returns a JSON 401 response.</p><h3>backend/src/main/java/edu/macslab/board/SecurityConfig.java</h3><pre>    decoder.setJwtValidator(new DelegatingOAuth2TokenValidator&lt;&gt;(
+        JwtValidators.createDefaultWithIssuer(issuer),shape));
+    return decoder;
+}
+@Bean SecurityFilterChain apiSecurity(HttpSecurity http,ObjectMapper json) throws Exception {</pre><h3>Walkthrough and reasoning</h3><p>JwtValidators.createDefaultWithIssuer combines standard validation with the required issuer. The additional shape validator rejects a missing/invalid subject and missing exp. The default time validator permits limited clock skew, so tests use a token clearly older than that tolerance. Controllers never parse an unverified token manually.</p><p class="note">Reading the payload alone cannot authenticate a request.</p><p class="meta">Excerpt begins near source line 51. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/SecurityConfig.java</summary><pre>package edu.macslab.board;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import java.util.Base64;
+import java.security.SecureRandom;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.*;
+import org.springframework.core.env.Environment;
+import org.springframework.core.env.Profiles;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.core.*;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.web.SecurityFilterChain;
+import java.util.UUID;
+
+@Configuration
+public class SecurityConfig {
+    @Bean PasswordEncoder passwords() { return new BCryptPasswordEncoder(12); }
+    @Bean SecretKey jwtKey(@Value(&quot;${app.jwt.secret:}&quot;) String configured, Environment env) {
+        byte[] bytes;
+        if (configured.isBlank()) {
+            if (!env.acceptsProfiles(Profiles.of(&quot;local&quot;,&quot;test&quot;)))
+                throw new IllegalStateException(&quot;JWT_SECRET must be set outside local/test.&quot;);
+            bytes=new byte[32]; new SecureRandom().nextBytes(bytes);
+        } else {
+            try { bytes=Base64.getDecoder().decode(configured); }
+            catch (IllegalArgumentException e) { throw new IllegalStateException(&quot;JWT_SECRET must be Base64.&quot;); }
+            if (bytes.length&lt;32) throw new IllegalStateException(&quot;JWT_SECRET requires at least 32 random bytes.&quot;);
+        }
+        return new SecretKeySpec(bytes,&quot;HmacSHA256&quot;);
+    }
+    @Bean JwtEncoder jwtEncoder(SecretKey key) { return new NimbusJwtEncoder(new ImmutableSecret&lt;&gt;(key)); }
+    @Bean JwtDecoder jwtDecoder(SecretKey key,@Value(&quot;${app.jwt.issuer}&quot;) String issuer) {
+        var decoder=NimbusJwtDecoder.withSecretKey(key).macAlgorithm(MacAlgorithm.HS256).build();
+        OAuth2TokenValidator&lt;Jwt&gt; shape=jwt -&gt; {
+            try {
+                UUID.fromString(jwt.getSubject());
+                if (jwt.getExpiresAt()==null) throw new IllegalArgumentException();
+                return OAuth2TokenValidatorResult.success();
+            } catch (Exception e) {
+                return OAuth2TokenValidatorResult.failure(new OAuth2Error(&quot;invalid_token&quot;));
+            }
+        };
+        decoder.setJwtValidator(new DelegatingOAuth2TokenValidator&lt;&gt;(
+            JwtValidators.createDefaultWithIssuer(issuer),shape));
+        return decoder;
+    }
+    @Bean SecurityFilterChain apiSecurity(HttpSecurity http,ObjectMapper json) throws Exception {
+        var unauthenticated=(org.springframework.security.web.AuthenticationEntryPoint)(req,res,error)-&gt;{
+            res.setStatus(401);res.setContentType(&quot;application/json&quot;);
+            res.setHeader(&quot;WWW-Authenticate&quot;,&quot;Bearer&quot;);
+            json.writeValue(res.getOutputStream(),new ApiModels.ErrorView(&quot;UNAUTHENTICATED&quot;,&quot;Sign in with a valid, unexpired token.&quot;));
+        };
+        var forbidden=(org.springframework.security.web.access.AccessDeniedHandler)(req,res,error)-&gt;{
+            res.setStatus(403);res.setContentType(&quot;application/json&quot;);
+            json.writeValue(res.getOutputStream(),new ApiModels.ErrorView(&quot;FORBIDDEN&quot;,&quot;You cannot perform this action.&quot;));
+        };
+        return http
+            // This API uses an Authorization header, never a session cookie.
+            .csrf(csrf-&gt;csrf.disable())
+            .sessionManagement(s-&gt;s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+            .authorizeHttpRequests(r-&gt;r
+                .requestMatchers(HttpMethod.POST,&quot;/api/auth/signup&quot;,&quot;/api/auth/login&quot;).permitAll()
+                .requestMatchers(HttpMethod.GET,&quot;/api/posts&quot;,&quot;/api/posts/*&quot;).permitAll()
+                .requestMatchers(&quot;/api/**&quot;).authenticated()
+                .requestMatchers(&quot;/actuator/health&quot;,&quot;/actuator/health/**&quot;,&quot;/&quot;,&quot;/index.html&quot;,&quot;/assets/**&quot;,
+                    &quot;/favicon.ico&quot;,&quot;/swagger-ui.html&quot;,&quot;/swagger-ui/**&quot;,&quot;/v3/api-docs/**&quot;,&quot;/error&quot;).permitAll()
+                .anyRequest().denyAll())
+            .oauth2ResourceServer(o-&gt;o.jwt(j-&gt;{}).authenticationEntryPoint(unauthenticated).accessDeniedHandler(forbidden))
+            .exceptionHandling(e-&gt;e.authenticationEntryPoint(unauthenticated).accessDeniedHandler(forbidden))
+            .build();
+    }
+}
+</pre></details><h2 id="step16">A16 / The saved author check</h2><p class="definition">An authorization rule checks whether the authenticated user may change this resource.</p><h3>post.ownerId</h3><p>The author from the database.</p><h3>userId</h3><p>The caller from the verified JWT.</p><h3>Mismatch</h3><p>403 before any edit or delete.</p><h3>backend/src/main/java/edu/macslab/board/PostService.java</h3><pre>private void requireOwner(Post post,UUID userId) {
+    // Compare the saved owner with the verified request identity.
+    if(!post.ownerId.equals(userId))
+        throw new ApiException(FORBIDDEN,&quot;FORBIDDEN&quot;,&quot;Only the author can change this post.&quot;);
+}
+@Transactional(readOnly=true)</pre><h3>Walkthrough and reasoning</h3><p>Use UUID.equals, which compares the value. The update and delete methods load the post and call requireOwner. The create method sets ownerId from the authenticated user, never the JSON body. The two-account tests must call the API directly so they exercise this boundary.</p><p class="note">A hidden button is helpful UI. This comparison enforces the rule.</p><p class="meta">Excerpt begins near source line 15. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/PostService.java</summary><pre>package edu.macslab.board;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import static org.springframework.http.HttpStatus.*;
+import static edu.macslab.board.ApiModels.*;
+import java.util.*;
+@Service
+public class PostService {
+    private final PostRepository posts;
+    private final AuthService auth;
+    PostService(PostRepository posts,AuthService auth) { this.posts=posts;this.auth=auth; }
+    private Post existing(UUID id) {
+        return posts.findById(id).orElseThrow(()-&gt;new ApiException(NOT_FOUND,&quot;NOT_FOUND&quot;,&quot;This post does not exist.&quot;));
+    }
+    private void requireOwner(Post post,UUID userId) {
+        // Compare the saved owner with the verified request identity.
+        if(!post.ownerId.equals(userId))
+            throw new ApiException(FORBIDDEN,&quot;FORBIDDEN&quot;,&quot;Only the author can change this post.&quot;);
+    }
+    @Transactional(readOnly=true)
+    public List&lt;PostView&gt; list() { return posts.findTop50ByOrderByCreatedAtDesc().stream().map(PostView::of).toList(); }
+    @Transactional(readOnly=true)
+    public PostView get(UUID id) { return PostView.of(existing(id)); }
+    @Transactional
+    public PostView create(UUID userId,PostInput input) {
+        auth.current(userId);
+        return PostView.of(posts.saveAndFlush(new Post(userId,input.title().strip(),input.content().strip())));
+    }
+    @Transactional
+    public PostView update(UUID userId,UUID id,PostInput input) {
+        auth.current(userId);Post post=existing(id);requireOwner(post,userId);
+        post.edit(input.title().strip(),input.content().strip());
+        return PostView.of(posts.saveAndFlush(post));
+    }
+    @Transactional
+    public void delete(UUID userId,UUID id) {
+        auth.current(userId);Post post=existing(id);requireOwner(post,userId);
+        posts.delete(post);
+    }
+}
+</pre></details><h2 id="step17">A17 / A transaction around an edit</h2><p class="definition">A transaction groups database work into a unit that commits or rolls back.</p><h3>Load</h3><p>Read the existing post.</p><h3>Check</h3><p>Confirm the caller owns it.</p><h3>Save</h3><p>Change fields and flush before returning a DTO.</p><h3>backend/src/main/java/edu/macslab/board/PostService.java</h3><pre>public PostView update(UUID userId,UUID id,PostInput input) {
+    auth.current(userId);Post post=existing(id);requireOwner(post,userId);
+    post.edit(input.title().strip(),input.content().strip());
+    return PostView.of(posts.saveAndFlush(post));
+}</pre><h3>Walkthrough and reasoning</h3><p>The method is annotated @Transactional in the preceding line. The Post entity also has @Version so concurrent overlapping edits can raise a conflict instead of silently replacing one another inside the transaction. This is not an offline conflict-resolution system. The response uses a DTO to expose only intended fields.</p><p class="note">An exception prevents a successful commit.</p><p class="meta">Excerpt begins near source line 30. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/PostService.java</summary><pre>package edu.macslab.board;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+import static org.springframework.http.HttpStatus.*;
+import static edu.macslab.board.ApiModels.*;
+import java.util.*;
+@Service
+public class PostService {
+    private final PostRepository posts;
+    private final AuthService auth;
+    PostService(PostRepository posts,AuthService auth) { this.posts=posts;this.auth=auth; }
+    private Post existing(UUID id) {
+        return posts.findById(id).orElseThrow(()-&gt;new ApiException(NOT_FOUND,&quot;NOT_FOUND&quot;,&quot;This post does not exist.&quot;));
+    }
+    private void requireOwner(Post post,UUID userId) {
+        // Compare the saved owner with the verified request identity.
+        if(!post.ownerId.equals(userId))
+            throw new ApiException(FORBIDDEN,&quot;FORBIDDEN&quot;,&quot;Only the author can change this post.&quot;);
+    }
+    @Transactional(readOnly=true)
+    public List&lt;PostView&gt; list() { return posts.findTop50ByOrderByCreatedAtDesc().stream().map(PostView::of).toList(); }
+    @Transactional(readOnly=true)
+    public PostView get(UUID id) { return PostView.of(existing(id)); }
+    @Transactional
+    public PostView create(UUID userId,PostInput input) {
+        auth.current(userId);
+        return PostView.of(posts.saveAndFlush(new Post(userId,input.title().strip(),input.content().strip())));
+    }
+    @Transactional
+    public PostView update(UUID userId,UUID id,PostInput input) {
+        auth.current(userId);Post post=existing(id);requireOwner(post,userId);
+        post.edit(input.title().strip(),input.content().strip());
+        return PostView.of(posts.saveAndFlush(post));
+    }
+    @Transactional
+    public void delete(UUID userId,UUID id) {
+        auth.current(userId);Post post=existing(id);requireOwner(post,userId);
+        posts.delete(post);
+    }
+}
+</pre></details><h2 id="step18">A18 / Entity fields and database columns</h2><p class="definition">An entity maps a Java object to a database record.</p><h3>UUID id</h3><p>The primary key identifies one post.</p><h3>ownerId</h3><p>The author relationship enforced by the SQL foreign key.</p><h3>@Version</h3><p>The persistence layer tracks concurrent updates.</p><h3>backend/src/main/java/edu/macslab/board/Post.java</h3><pre>@Id UUID id;
+@Column(name=&quot;owner_id&quot;, nullable=false) UUID ownerId;
+@Column(nullable=false, length=120) String title;
+@Column(nullable=false, length=4000) String content;
+@Column(name=&quot;created_at&quot;, nullable=false) Instant createdAt;
+@Column(name=&quot;updated_at&quot;, nullable=false) Instant updatedAt;
+@Version long version;
+protected Post() {}</pre><h3>Walkthrough and reasoning</h3><p>Column annotations specify names, nullability, and lengths. The migration creates the matching schema before Hibernate validates it. createdAt is initialized once and updatedAt changes in edit(). The API returns PostView rather than serializing every entity field automatically.</p><p class="note">Entity objects stay inside the backend.</p><p class="meta">Excerpt begins near source line 7. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/Post.java</summary><pre>package edu.macslab.board;
+import jakarta.persistence.*;
+import java.time.Instant;
+import java.util.UUID;
+@Entity @Table(name=&quot;post&quot;)
+public class Post {
+    @Id UUID id;
+    @Column(name=&quot;owner_id&quot;, nullable=false) UUID ownerId;
+    @Column(nullable=false, length=120) String title;
+    @Column(nullable=false, length=4000) String content;
+    @Column(name=&quot;created_at&quot;, nullable=false) Instant createdAt;
+    @Column(name=&quot;updated_at&quot;, nullable=false) Instant updatedAt;
+    @Version long version;
+    protected Post() {}
+    Post(UUID ownerId, String title, String content) {
+        this.id=UUID.randomUUID(); this.ownerId=ownerId;
+        this.title=title; this.content=content;
+        this.createdAt=Instant.now(); this.updatedAt=this.createdAt;
+    }
+    void edit(String title, String content) {
+        this.title=title; this.content=content; this.updatedAt=Instant.now();
+    }
+}
+</pre></details><h2 id="step19">A19 / Repository query names</h2><p class="definition">A repository provides database operations for an entity.</p><h3>JpaRepository</h3><p>Provides common CRUD operations.</p><h3>Top50</h3><p>Bounds the returned list.</p><h3>CreatedAtDesc</h3><p>Sorts newest creation time first.</p><h3>backend/src/main/java/edu/macslab/board/PostRepository.java</h3><pre>public interface PostRepository extends JpaRepository&lt;Post, UUID&gt; {
+    List&lt;Post&gt; findTop50ByOrderByCreatedAtDesc();
+}</pre><h3>Walkthrough and reasoning</h3><p>Spring Data interprets the method name to generate a query. The return type is a List&lt;Post&gt;. PostService transforms each result into PostView. This is sufficient for the small lab; a production feed should add explicit pagination and stable ordering for tied timestamps.</p><p class="note">An older post outside the first 50 is still stored.</p><p class="meta">Excerpt begins near source line 4. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/PostRepository.java</summary><pre>package edu.macslab.board;
+import java.util.*;
+import org.springframework.data.jpa.repository.JpaRepository;
+public interface PostRepository extends JpaRepository&lt;Post, UUID&gt; {
+    List&lt;Post&gt; findTop50ByOrderByCreatedAtDesc();
+}
+</pre></details><h2 id="step20">A20 / The Flyway migration</h2><p class="definition">A migration is a versioned database schema change.</p><h3>V1__</h3><p>Version and description identify the migration.</p><h3>UNIQUE email</h3><p>The database prevents duplicate accounts.</p><h3>History</h3><p>Flyway records applied versions and checksums.</p><h3>backend/src/main/resources/db/migration/V1__create_board.sql</h3><pre>CREATE TABLE app_user (
+    id UUID PRIMARY KEY,
+    name VARCHAR(60) NOT NULL,
+    email VARCHAR(254) NOT NULL,
+    password_hash VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CONSTRAINT uq_app_user_email UNIQUE (email)
+);</pre><h3>Walkthrough and reasoning</h3><p>The unique constraint also protects against two concurrent signups with the same normalized email. Application pre-checks provide a friendly error, but the database remains the final constraint. The post table references app_user with a foreign key. ddl-auto: validate checks mappings without recreating tables.</p><p class="note">After deployment, add V2 for a new change instead of rewriting V1.</p><p class="meta">Excerpt begins near source line 1. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/resources/db/migration/V1__create_board.sql</summary><pre>CREATE TABLE app_user (
+    id UUID PRIMARY KEY,
+    name VARCHAR(60) NOT NULL,
+    email VARCHAR(254) NOT NULL,
+    password_hash VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    CONSTRAINT uq_app_user_email UNIQUE (email)
+);
+CREATE TABLE post (
+    id UUID PRIMARY KEY,
+    owner_id UUID NOT NULL REFERENCES app_user(id),
+    title VARCHAR(120) NOT NULL,
+    content VARCHAR(4000) NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    version BIGINT NOT NULL
+);
+CREATE INDEX ix_post_created_at ON post (created_at DESC);
+CREATE INDEX ix_post_owner_id ON post (owner_id);
+</pre></details><h2 id="step21">A21 / Production configuration</h2><p class="definition">A profile selects a group of settings for an environment.</p><h3>prod</h3><p>Reads database variables from the runtime environment.</p><h3>Hikari pool</h3><p>At most three connections, with zero minimum idle.</p><h3>Startup</h3><p>Missing values or failed migrations stop the app.</p><h3>backend/src/main/resources/application-prod.yml</h3><pre>spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 3
+      minimum-idle: 0
+      connection-timeout: 30000
+app:</pre><h3>Walkthrough and reasoning</h3><p>Render sets SPRING_PROFILES_ACTIVE=prod and the four secret/configuration values. The JDBC URL includes the database host and TLS option, while role and password are separate variables. A small pool reduces resource use in the teaching tier. A sleeping database can delay the first connection.</p><p class="note">Spring Boot does not automatically read the sample .env.example file.</p><p class="meta">Excerpt begins near source line 2. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/resources/application-prod.yml</summary><pre># No production defaults for credentials. Missing values must stop startup.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 3
+      minimum-idle: 0
+      connection-timeout: 30000
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+</pre></details><h2 id="step22">A22 / Docker: frontend build</h2><p class="definition">A build stage produces files needed by a later stage.</p><h3>Dependencies</h3><p>Copy package manifests and run npm ci.</p><h3>Source</h3><p>Copy the Vue project.</p><h3>Output</h3><p>npm run build creates /web/dist.</p><h3>Dockerfile</h3><pre>FROM node:24-bookworm-slim AS web
+WORKDIR /web
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build</pre><h3>Walkthrough and reasoning</h3><p>The Node stage has build tools but contributes only compiled browser assets to the Java stage. Copying dependency manifests before source lets Docker cache installation when only application code changes. The lock file is required. Do not put frontend secrets into a build environment variable.</p><p class="note">The Node development server does not run in production.</p><p class="meta">Excerpt begins near source line 2. Read the surrounding method before editing.</p><details><summary>Complete file: Dockerfile</summary><pre># Render builds this file. Students do not need Docker for a Render deployment.
+FROM node:24-bookworm-slim AS web
+WORKDIR /web
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM maven:3.9.11-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY backend/pom.xml ./
+RUN mvn -B dependency:go-offline
+COPY backend/src ./src
+COPY --from=web /web/dist ./src/main/resources/static
+RUN mvn -B package
+
+FROM eclipse-temurin:21-jre-jammy
+WORKDIR /app
+RUN groupadd --system app &amp;&amp; useradd --system --gid app app
+COPY --from=build --chown=app:app /app/target/campus-board.jar /app/app.jar
+USER app
+ENV SPRING_PROFILES_ACTIVE=prod
+ENV JAVA_TOOL_OPTIONS=&quot;-XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError&quot;
+EXPOSE 18707
+ENTRYPOINT [&quot;java&quot;,&quot;-jar&quot;,&quot;/app/app.jar&quot;]
+</pre></details><h2 id="step23">A23 / Docker: Java build and tests</h2><p class="definition">A multi-stage build can combine outputs from different toolchains.</p><h3>Maven</h3><p>Uses the pinned Spring Boot project.</p><h3>Vue assets</h3><p>Copies dist into src/main/resources/static.</p><h3>Package</h3><p>Tests run before the executable JAR is produced.</p><h3>Dockerfile</h3><pre>FROM maven:3.9.11-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY backend/pom.xml ./
+RUN mvn -B dependency:go-offline
+COPY backend/src ./src
+COPY --from=web /web/dist ./src/main/resources/static
+RUN mvn -B package
+</pre><h3>Walkthrough and reasoning</h3><p>The runtime stage receives the packaged JAR, not the full source tree or build tools. The app’s relative /api requests work on the same origin. A failing backend test should stop the deployment build. Deploy the supplied implementation after its tests pass.</p><p class="note">One JAR serves the app and the API.</p><p class="meta">Excerpt begins near source line 9. Read the surrounding method before editing.</p><details><summary>Complete file: Dockerfile</summary><pre># Render builds this file. Students do not need Docker for a Render deployment.
+FROM node:24-bookworm-slim AS web
+WORKDIR /web
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM maven:3.9.11-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY backend/pom.xml ./
+RUN mvn -B dependency:go-offline
+COPY backend/src ./src
+COPY --from=web /web/dist ./src/main/resources/static
+RUN mvn -B package
+
+FROM eclipse-temurin:21-jre-jammy
+WORKDIR /app
+RUN groupadd --system app &amp;&amp; useradd --system --gid app app
+COPY --from=build --chown=app:app /app/target/campus-board.jar /app/app.jar
+USER app
+ENV SPRING_PROFILES_ACTIVE=prod
+ENV JAVA_TOOL_OPTIONS=&quot;-XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError&quot;
+EXPOSE 18707
+ENTRYPOINT [&quot;java&quot;,&quot;-jar&quot;,&quot;/app/app.jar&quot;]
+</pre></details><h2 id="step24">A24 / Docker: the runtime process</h2><p class="definition">A runtime image contains what the deployed process needs to run.</p><h3>Non-root user</h3><p>The Java process runs as app.</p><h3>Memory</h3><p>The heap uses a fraction of container RAM.</p><h3>Entrypoint</h3><p>java -jar starts the packaged service.</p><h3>Dockerfile</h3><pre>FROM eclipse-temurin:21-jre-jammy
+WORKDIR /app
+RUN groupadd --system app &amp;&amp; useradd --system --gid app app
+COPY --from=build --chown=app:app /app/target/campus-board.jar /app/app.jar
+USER app
+ENV SPRING_PROFILES_ACTIVE=prod
+ENV JAVA_TOOL_OPTIONS=&quot;-XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError&quot;
+EXPOSE 18707
+ENTRYPOINT [&quot;java&quot;,&quot;-jar&quot;,&quot;/app/app.jar&quot;]</pre><h3>Walkthrough and reasoning</h3><p>EXPOSE documents a port; it does not override the application’s actual listening port. server.port uses ${PORT:18707}, so Render’s PORT value wins. MaxRAMPercentage applies to heap sizing, not total process memory. Native memory, thread stacks, and libraries still consume RAM. Verify the complete sample under the target memory limit.</p><p class="note">PORT comes from Render and application.yml reads it.</p><p class="meta">Excerpt begins near source line 17. Read the surrounding method before editing.</p><details><summary>Complete file: Dockerfile</summary><pre># Render builds this file. Students do not need Docker for a Render deployment.
+FROM node:24-bookworm-slim AS web
+WORKDIR /web
+COPY frontend/package*.json ./
+RUN npm ci
+COPY frontend/ ./
+RUN npm run build
+
+FROM maven:3.9.11-eclipse-temurin-21 AS build
+WORKDIR /app
+COPY backend/pom.xml ./
+RUN mvn -B dependency:go-offline
+COPY backend/src ./src
+COPY --from=web /web/dist ./src/main/resources/static
+RUN mvn -B package
+
+FROM eclipse-temurin:21-jre-jammy
+WORKDIR /app
+RUN groupadd --system app &amp;&amp; useradd --system --gid app app
+COPY --from=build --chown=app:app /app/target/campus-board.jar /app/app.jar
+USER app
+ENV SPRING_PROFILES_ACTIVE=prod
+ENV JAVA_TOOL_OPTIONS=&quot;-XX:MaxRAMPercentage=60 -XX:+ExitOnOutOfMemoryError&quot;
+EXPOSE 18707
+ENTRYPOINT [&quot;java&quot;,&quot;-jar&quot;,&quot;/app/app.jar&quot;]
+</pre></details><h2 id="step25">A25 / OpenAPI security metadata</h2><p class="definition">A security scheme documents how an API client authenticates.</p><h3>bearerAuth</h3><p>The name used by protected operations.</p><h3>HTTP bearer</h3><p>Swagger adds the Bearer header prefix.</p><h3>JWT format</h3><p>A documentation hint about the token value.</p><h3>backend/src/main/java/edu/macslab/board/OpenApiConfig.java</h3><pre>    return new OpenAPI().info(new Info().title(&quot;Campus Board API&quot;).version(&quot;1.0&quot;)
+        .description(&quot;Week 07 practice. Posts are public. Only an author can edit or delete their post.&quot;))
+        .components(new Components().addSecuritySchemes(&quot;bearerAuth&quot;,new SecurityScheme()
+            .type(SecurityScheme.Type.HTTP).scheme(&quot;bearer&quot;).bearerFormat(&quot;JWT&quot;)));
+}</pre><h3>Walkthrough and reasoning</h3><p>Without @SecurityRequirement on an operation, Swagger may not attach the authorized token to that operation even though Spring requires authentication. Keep the scheme name consistent. Public signup and login operations intentionally have no bearer requirement. The generated JSON is available at /v3/api-docs.</p><p class="note">Metadata describes the requirement. SecurityConfig enforces it.</p><p class="meta">Excerpt begins near source line 9. Read the surrounding method before editing.</p><details><summary>Complete file: backend/src/main/java/edu/macslab/board/OpenApiConfig.java</summary><pre>package edu.macslab.board;
+import org.springframework.context.annotation.*;
+import io.swagger.v3.oas.models.*;
+import io.swagger.v3.oas.models.info.Info;
+import io.swagger.v3.oas.models.security.SecurityScheme;
+@Configuration
+public class OpenApiConfig {
+    @Bean OpenAPI apiDescription() {
+        return new OpenAPI().info(new Info().title(&quot;Campus Board API&quot;).version(&quot;1.0&quot;)
+            .description(&quot;Week 07 practice. Posts are public. Only an author can edit or delete their post.&quot;))
+            .components(new Components().addSecuritySchemes(&quot;bearerAuth&quot;,new SecurityScheme()
+                .type(SecurityScheme.Type.HTTP).scheme(&quot;bearer&quot;).bearerFormat(&quot;JWT&quot;)));
+    }
+}
+</pre></details><h2 id="step26">A26 / A direct authorization test</h2><p class="definition">A negative test verifies that a forbidden action fails.</p><h3>Arrange</h3><p>Alex creates a post. Sam gets a separate token.</p><h3>Act</h3><p>Sam sends PUT and DELETE directly.</p><h3>Assert</h3><p>Both return 403 and the original title remains.</p><h3>backend/src/test/java/edu/macslab/board/BoardApiTest.java</h3><pre>mvc.perform(put(&quot;/api/posts/&quot;+id)
+  .header(&quot;Authorization&quot;,&quot;Bearer &quot;+b)
+  .contentType(&quot;application/json&quot;)
+  .content(body(Map.of(
+    &quot;title&quot;,&quot;Tampered&quot;,&quot;content&quot;,&quot;No&quot;))))
+  .andExpect(status().isForbidden());
+mvc.perform(delete(&quot;/api/posts/&quot;+id)
+  .header(&quot;Authorization&quot;,&quot;Bearer &quot;+b))
+  .andExpect(status().isForbidden());
+mvc.perform(get(&quot;/api/posts/&quot;+id))
+  .andExpect(jsonPath(&quot;$.title&quot;).value(&quot;Study group&quot;));</pre><h3>Walkthrough and reasoning</h3><p>MockMvc exercises the security filter, controller, service, and H2-backed repository in a Spring test context. It does not run through Render’s network or Neon, so the smoke script repeats the important behaviors against a real running service. Testing two layers gives different evidence.</p><p class="note">Testing only the owner’s happy path would miss this bug.</p><details><summary>Complete file: backend/src/test/java/edu/macslab/board/BoardApiTest.java</summary><pre>package edu.macslab.board;
+import com.fasterxml.jackson.databind.*;
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.web.servlet.*;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.oauth2.jwt.*;
+import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import java.time.Instant;
+import java.util.*;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+@SpringBootTest @AutoConfigureMockMvc @ActiveProfiles(&quot;test&quot;)
+class BoardApiTest {
+ @Autowired MockMvc mvc;
+ @Autowired ObjectMapper json;
+ @Autowired UserRepository users;
+ @Autowired PostRepository posts;
+ @Autowired PasswordEncoder passwords;
+ @Autowired JwtEncoder encoder;
+ final String password=&quot;PracticeOnly123!&quot;;
+ @BeforeEach void clear() { posts.deleteAll(); users.deleteAll(); }
+ String body(Object value) throws Exception { return json.writeValueAsString(value); }
+ JsonNode read(MvcResult r) throws Exception { return json.readTree(r.getResponse().getContentAsString()); }
+ Map&lt;String,String&gt; signupData(String email) { return Map.of(&quot;name&quot;,&quot;Alex&quot;,&quot;email&quot;,email,&quot;password&quot;,password); }
+ void signup(String email) throws Exception {
+  mvc.perform(post(&quot;/api/auth/signup&quot;).contentType(&quot;application/json&quot;).content(body(signupData(email))))
+   .andExpect(status().isCreated()).andExpect(jsonPath(&quot;$.passwordHash&quot;).doesNotExist());
+ }
+ String login(String email) throws Exception {
+  return read(mvc.perform(post(&quot;/api/auth/login&quot;).contentType(&quot;application/json&quot;)
+   .content(body(Map.of(&quot;email&quot;,email,&quot;password&quot;,password)))).andExpect(status().isOk()).andReturn()).get(&quot;accessToken&quot;).asText();
+ }
+ String account(String email) throws Exception { signup(email); return login(email); }
+ String create(String token) throws Exception {
+  return read(mvc.perform(post(&quot;/api/posts&quot;).header(&quot;Authorization&quot;,&quot;Bearer &quot;+token).contentType(&quot;application/json&quot;)
+   .content(body(Map.of(&quot;title&quot;,&quot;Study group&quot;,&quot;content&quot;,&quot;Library at 3 PM&quot;))))
+   .andExpect(status().isCreated()).andReturn()).get(&quot;id&quot;).asText();
+ }
+ @Test void passwordsAreHashedAndDuplicateEmailsConflict() throws Exception {
+  signup(&quot;alex@example.com&quot;);var u=users.findByEmail(&quot;alex@example.com&quot;).orElseThrow();
+  assertNotEquals(password,u.passwordHash);assertTrue(passwords.matches(password,u.passwordHash));
+  mvc.perform(post(&quot;/api/auth/signup&quot;).contentType(&quot;application/json&quot;).content(body(signupData(&quot;ALEX@example.com&quot;))))
+   .andExpect(status().isConflict());
+ }
+ @Test void wrongPasswordFailsAndValidTokenIdentifiesUser() throws Exception {
+  String token=account(&quot;alex@example.com&quot;);
+  mvc.perform(post(&quot;/api/auth/login&quot;).contentType(&quot;application/json&quot;).content(body(Map.of(&quot;email&quot;,&quot;alex@example.com&quot;,&quot;password&quot;,&quot;incorrect&quot;))))
+   .andExpect(status().isUnauthorized()).andExpect(jsonPath(&quot;$.code&quot;).value(&quot;INVALID_CREDENTIALS&quot;));
+  mvc.perform(get(&quot;/api/me&quot;).header(&quot;Authorization&quot;,&quot;Bearer &quot;+token)).andExpect(status().isOk())
+   .andExpect(jsonPath(&quot;$.email&quot;).value(&quot;alex@example.com&quot;));
+ }
+ @Test void anonymousReadAllowedButWritesAndMeRequireToken() throws Exception {
+  mvc.perform(get(&quot;/api/posts&quot;)).andExpect(status().isOk());
+  mvc.perform(get(&quot;/api/me&quot;)).andExpect(status().isUnauthorized());
+  mvc.perform(post(&quot;/api/posts&quot;).contentType(&quot;application/json&quot;).content(body(Map.of(&quot;title&quot;,&quot;x&quot;,&quot;content&quot;,&quot;y&quot;))))
+   .andExpect(status().isUnauthorized());
+ }
+ @Test void ownPostCanBeReadEditedAndDeleted() throws Exception {
+  String token=account(&quot;alex@example.com&quot;), id=create(token);
+  mvc.perform(get(&quot;/api/posts/&quot;+id)).andExpect(status().isOk()).andExpect(jsonPath(&quot;$.title&quot;).value(&quot;Study group&quot;));
+  mvc.perform(put(&quot;/api/posts/&quot;+id).header(&quot;Authorization&quot;,&quot;Bearer &quot;+token).contentType(&quot;application/json&quot;)
+   .content(body(Map.of(&quot;title&quot;,&quot;New title&quot;,&quot;content&quot;,&quot;Updated content&quot;)))).andExpect(status().isOk())
+   .andExpect(jsonPath(&quot;$.title&quot;).value(&quot;New title&quot;));
+  mvc.perform(delete(&quot;/api/posts/&quot;+id).header(&quot;Authorization&quot;,&quot;Bearer &quot;+token)).andExpect(status().isNoContent());
+  mvc.perform(get(&quot;/api/posts/&quot;+id)).andExpect(status().isNotFound());
+ }
+ @Test void otherAccountCannotEditOrDeleteEvenByCallingApiDirectly() throws Exception {
+  String a=account(&quot;a@example.com&quot;), id=create(a), b=account(&quot;b@example.com&quot;);
+  mvc.perform(put(&quot;/api/posts/&quot;+id).header(&quot;Authorization&quot;,&quot;Bearer &quot;+b).contentType(&quot;application/json&quot;)
+   .content(body(Map.of(&quot;title&quot;,&quot;Tampered&quot;,&quot;content&quot;,&quot;No&quot;)))).andExpect(status().isForbidden());
+  mvc.perform(delete(&quot;/api/posts/&quot;+id).header(&quot;Authorization&quot;,&quot;Bearer &quot;+b)).andExpect(status().isForbidden());
+  mvc.perform(get(&quot;/api/posts/&quot;+id)).andExpect(jsonPath(&quot;$.title&quot;).value(&quot;Study group&quot;));
+ }
+ @Test void ownerIdCannotBeInjectedAndInvalidInputIsRejected() throws Exception {
+  String token=account(&quot;alex@example.com&quot;);
+  mvc.perform(post(&quot;/api/posts&quot;).header(&quot;Authorization&quot;,&quot;Bearer &quot;+token).contentType(&quot;application/json&quot;)
+   .content(body(Map.of(&quot;title&quot;,&quot;x&quot;,&quot;content&quot;,&quot;y&quot;,&quot;ownerId&quot;,UUID.randomUUID())))).andExpect(status().isBadRequest());
+  mvc.perform(post(&quot;/api/posts&quot;).header(&quot;Authorization&quot;,&quot;Bearer &quot;+token).contentType(&quot;application/json&quot;)
+   .content(body(Map.of(&quot;title&quot;,&quot; &quot;,&quot;content&quot;,&quot;y&quot;)))).andExpect(status().isBadRequest());
+  mvc.perform(get(&quot;/api/posts/not-a-uuid&quot;)).andExpect(status().isBadRequest());
+ }
+ @Test void invalidSignatureExpiredTokenAndWrongIssuerFail() throws Exception {
+  String token=account(&quot;alex@example.com&quot;);
+  String[] bits=token.split(&quot;\\.&quot;);
+  String bad=bits[0]+&quot;.&quot;+bits[1]+&quot;.&quot;+(bits[2].startsWith(&quot;A&quot;)?&quot;B&quot;:&quot;A&quot;)+bits[2].substring(1);
+  mvc.perform(get(&quot;/api/me&quot;).header(&quot;Authorization&quot;,&quot;Bearer &quot;+bad)).andExpect(status().isUnauthorized());
+  String id=users.findByEmail(&quot;alex@example.com&quot;).orElseThrow().id.toString();
+  for(String issuer:List.of(&quot;campus-board&quot;,&quot;wrong-issuer&quot;)) {
+   Instant now=Instant.now();var c=JwtClaimsSet.builder().issuer(issuer).subject(id)
+    .issuedAt(now.minusSeconds(3600)).expiresAt(issuer.equals(&quot;campus-board&quot;)?now.minusSeconds(120):now.plusSeconds(1800)).build();
+   String signed=encoder.encode(JwtEncoderParameters.from(JwsHeader.with(MacAlgorithm.HS256).build(),c)).getTokenValue();
+   mvc.perform(get(&quot;/api/me&quot;).header(&quot;Authorization&quot;,&quot;Bearer &quot;+signed)).andExpect(status().isUnauthorized());
+  }
+ }
+ @Test void passwordByteLimitAndShortPasswordsFail() throws Exception {
+  for(String p:List.of(&quot;short&quot;,&quot;界&quot;.repeat(25))) {
+   mvc.perform(post(&quot;/api/auth/signup&quot;).contentType(&quot;application/json&quot;)
+    .content(body(Map.of(&quot;name&quot;,&quot;Alex&quot;,&quot;email&quot;,&quot;alex@example.com&quot;,&quot;password&quot;,p))))
+    .andExpect(status().isBadRequest());
+  }
+ }
+ @Test void healthAndApiSpecificationAreAvailable() throws Exception {
+  mvc.perform(get(&quot;/actuator/health&quot;)).andExpect(status().isOk()).andExpect(jsonPath(&quot;$.status&quot;).value(&quot;UP&quot;));
+  mvc.perform(get(&quot;/v3/api-docs&quot;)).andExpect(status().isOk())
+   .andExpect(jsonPath(&quot;$.components.securitySchemes.bearerAuth.scheme&quot;).value(&quot;bearer&quot;));
+ }
+}
+</pre></details></main><script>document.querySelectorAll('pre').forEach(pre=>{const b=document.createElement('button');b.className='copy';b.textContent='Copy code';pre.before(b);b.onclick=async()=>{try{await navigator.clipboard.writeText(pre.textContent)}catch{const t=document.createElement('textarea');t.value=pre.textContent;document.body.append(t);t.select();document.execCommand('copy');t.remove()}b.textContent='Copied';setTimeout(()=>b.textContent='Copy code',1000)}});(()=>{
+ const viewer=document.createElement('dialog');viewer.className='image-dialog';viewer.setAttribute('aria-label','Screenshot enlarged');viewer.innerHTML='<div class="image-tools"><span>Screenshot</span><button type="button" data-size>Original size</button><button type="button" data-image-close>Close</button></div><div class="image-scroll"><img alt=""></div>';document.body.append(viewer);
+ let previous;
+ function openImage(el){previous=el;viewer.querySelector('img').src=el.src;viewer.querySelector('img').alt=el.alt;viewer.classList.remove('native-size');viewer.querySelector('[data-size]').textContent='Original size';viewer.showModal();document.dispatchEvent(new CustomEvent('screenshot-open'));}
+ document.addEventListener('click',ev=>{if(ev.target.matches('img.zoomable'))openImage(ev.target)});
+ document.addEventListener('keydown',ev=>{if(ev.target.matches('img.zoomable')&&['Enter',' '].includes(ev.key)){ev.preventDefault();ev.stopPropagation();openImage(ev.target)}},true);
+ viewer.querySelector('[data-image-close]').onclick=()=>viewer.close();viewer.querySelector('[data-size]').onclick=ev=>{const native=viewer.classList.toggle('native-size');ev.target.textContent=native?'Fit width':'Original size';};viewer.addEventListener('close',()=>previous?.focus());
+})();
+</script></body></html>

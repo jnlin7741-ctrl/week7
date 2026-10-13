@@ -1,0 +1,36 @@
+server:
+  port: ${PORT:18707}
+  forward-headers-strategy: framework
+  error:
+    include-message: never
+    include-stacktrace: never
+spring:
+  application:
+    name: campus-board
+  profiles:
+    default: local
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+app:
+  jwt:
+    issuer: campus-board
+    ttl-seconds: 1800
+springdoc:
+  swagger-ui:
+    path: /swagger-ui.html
+    persist-authorization: false
+    disable-swagger-default-url: true
+    operations-sorter: alpha
